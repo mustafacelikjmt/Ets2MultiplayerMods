@@ -202,7 +202,7 @@ function Get-Ets2LogInfo {
 # Bilinen harita DLC paket adları (konvoyda harita eşleşmesi için önemli)
 $script:MapDlcNames = @{
     'dlc_east'     = 'Going East!'
-    'dlc_north'    = 'Scandinavia'
+    'dlc_north'    = 'Scandinavia (+ Nordic Horizons)'
     'dlc_fr'       = 'Vive la France!'
     'dlc_it'       = 'Italia'
     'dlc_balt'     = 'Beyond the Baltic Sea'
@@ -211,5 +211,17 @@ $script:MapDlcNames = @{
     'dlc_balkan_w' = 'West Balkans'
     'dlc_greece'   = 'Greece'
     'dlc_russia'   = 'Heart of Russia'
-    'dlc_nordic'   = 'Nordic Horizons'
+}
+
+function Get-Ets2OwnedDlcAppIds {
+    # Steam'in kurduğu DLC depoları (appmanifest_227300.acf). Nordic Horizons gibi ayrı .scs
+    # dosyası olmayan DLC'ler sadece buradan görülebilir.
+    foreach ($lib in Get-SteamLibraryPaths) {
+        $acf = Join-Path $lib "steamapps\appmanifest_$script:Ets2AppId.acf"
+        if (Test-Path -LiteralPath $acf) {
+            return @([regex]::Matches((Get-Content -LiteralPath $acf -Raw), '"dlcappid"\s+"(\d+)"') |
+                ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+        }
+    }
+    return @()
 }

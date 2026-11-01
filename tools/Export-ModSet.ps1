@@ -78,6 +78,7 @@ $result = [pscustomobject]@{
     CreatedAt    = (Get-Date).ToString('s')
     GameVersion  = if ($log) { $log.GameVersion } else { $null }
     MapDlcs      = $mapDlcs
+    DlcAppIds    = @(Get-Ets2OwnedDlcAppIds)
     Dlcs         = if ($IncludeAllDlcs) { $dlcs } else { $null }
     ActiveModLog = if ($log) { $log.ModLines } else { @() }
     Mods         = $mods
@@ -87,5 +88,6 @@ $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutFile -Encoding 
 Write-Host ''
 Write-Host "Oyun sürümü : $($result.GameVersion)"
 Write-Host "Harita DLC  : $(($mapDlcs | ForEach-Object { $script:MapDlcNames[$_] }) -join ', ')"
+Write-Host "Steam DLC   : $($result.DlcAppIds.Count) adet"
 Write-Host "Mod sayısı  : $($mods.Count) (harita modu: $(@($mods | Where-Object IsMapMod).Count))"
 Write-Host "Yazıldı     : $OutFile" -ForegroundColor Green

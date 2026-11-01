@@ -36,6 +36,16 @@ if (-not $missingDlc.Count -and -not $extraDlc.Count) { Write-Ok 'Aynı' }
 foreach ($d in $missingDlc) { Write-Problem "$($dif.Label) bu harita DLC'sine sahip değil: $d" }
 foreach ($d in $extraDlc) { Write-Host "  [i] Sadece $($dif.Label) sahip: $d" -ForegroundColor DarkYellow }
 
+if ($ref.PSObject.Properties['DlcAppIds'] -and $dif.PSObject.Properties['DlcAppIds']) {
+    Write-Host 'Steam DLC''leri (tümü)'
+    $missingApp = @($ref.DlcAppIds | Where-Object { $dif.DlcAppIds -notcontains $_ })
+    if (-not $missingApp.Count) { Write-Ok "$($dif.Label), host'un tüm DLC'lerine sahip" }
+    foreach ($a in $missingApp) {
+        # Harita DLC'si değilse konvoyu engellemeyebilir; mod DLC bağımlılığı varsa engeller
+        Write-Host "  [!] $($dif.Label) sahip değil: https://store.steampowered.com/app/$a" -ForegroundColor Yellow
+    }
+}
+
 Write-Host 'Modlar'
 function Get-ModKey($m) { if ($m.WorkshopId) { "ws:$($m.WorkshopId)/$($m.File)" } else { "local:$($m.File)" } }
 $difByKey = @{}; foreach ($m in @($dif.Mods)) { $difByKey[(Get-ModKey $m)] = $m }
