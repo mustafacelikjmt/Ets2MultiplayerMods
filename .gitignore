@@ -28,6 +28,8 @@ game.log.txt
 logs/
 profiles/
 steam_profiles/
+# Export-ModSet.ps1 çıktıları (oyuncuya özel)
+modset-*.json
 *.sii.bak
 *.bak
 
