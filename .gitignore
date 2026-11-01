@@ -1,0 +1,75 @@
+# =========================================================
+# Ets2MultiplayerMods - .gitignore
+# Repo PUBLIC. Gizli bilgi, başkasına ait mod içeriği ve
+# dokümanlar yalnızca lokalde kalır.
+# =========================================================
+
+# --- Dokümanlar (yalnızca lokal) ---
+docs/
+*.md
+
+# --- Mod dosyaları (başkalarına ait / büyük ikili dosyalar) ---
+# orijinal .scs kopyaları
+original/
+# açılmış mod içerikleri
+extracted/
+# geçici çalışma alanı
+work/
+# paketlenmiş çıktılar
+dist/
+*.scs
+*.zip
+*.7z
+*.rar
+
+# --- Oyun logları, kayıtlar, profiller ---
+*.log
+game.log.txt
+logs/
+profiles/
+steam_profiles/
+*.sii.bak
+*.bak
+
+# --- Gizli bilgiler (yalnızca lokal) ---
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+secrets/
+*.secret
+*.secrets.*
+*.local.*
+local/
+
+# --- Claude Code yerel ayarları ---
+.claude/settings.local.json
+
+# --- Harici araçlar (SCS Extractor, TruckLib vb. ikilileri) ---
+tools/bin/
+*.exe
+*.dll
+
+# --- .NET / build çıktıları ---
+bin/
+obj/
+*.user
+*.suo
+
+# --- IDE / editör ---
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# --- İşletim sistemi ---
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Geçici dosyalar ---
+tmp/
+temp/
+*.tmp
