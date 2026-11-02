@@ -68,8 +68,43 @@ foreach ($m in @($ref.Mods)) {
     Write-Ok "$tag$($m.File)"
 }
 
+function Get-ActiveOrder($set) {
+    # game.log.txt'deki son "[mods] Active N mods" bloğu; log en düşük öncelikten başlar
+    $lines = @($set.ActiveModLog)
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^\[mods\] Active \d+ mods') { $start = $i } }
+    if ($start -lt 0) { return @() }
+    $order = New-Object System.Collections.Generic.List[string]
+    for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+        $m = [regex]::Match($lines[$i], '^\[mods\] Active (?:local|workshop) mod (.+?) \(name:')
+        if (-not $m.Success) { break }
+        $order.Add($m.Groups[1].Value)
+    }
+    $arr = $order.ToArray()
+    [array]::Reverse($arr)
+    return $arr
+}
+
+Write-Host 'Aktif mod sırası (Mod Yöneticisi, üstten alta)'
+$refOrder = @(Get-ActiveOrder $ref)
+$difOrder = @(Get-ActiveOrder $dif)
+if (-not $refOrder.Count -or -not $difOrder.Count) {
+    Write-Host '  [i] Logda aktif mod listesi yok (oyun modlar açıkken bir kez başlatılıp kapatılmalı).' -ForegroundColor DarkYellow
+} elseif (($refOrder -join '|') -eq ($difOrder -join '|')) {
+    Write-Ok "$($refOrder.Count) mod, sıra aynı"
+} else {
+    Write-Problem 'Sıra veya aktif liste farklı:'
+    $n = [math]::Max($refOrder.Count, $difOrder.Count)
+    for ($i = 0; $i -lt $n; $i++) {
+        $a = if ($i -lt $refOrder.Count) { $refOrder[$i] } else { '-' }
+        $b = if ($i -lt $difOrder.Count) { $difOrder[$i] } else { '-' }
+        $color = if ($a -eq $b) { 'DarkGray' } else { 'Yellow' }
+        Write-Host ("    {0,2}. {1,-40} {2}" -f ($i + 1), $a, $b) -ForegroundColor $color
+    }
+}
+
 Write-Host ''
-Write-Host 'Not: Bu karşılaştırma kurulu dosyalara bakar. Mod Yöneticisi''ndeki AKTİF liste ve SIRA' -ForegroundColor DarkGray
-Write-Host 'her iki oyuncuda aynı olmalı; ActiveModLog alanları game.log.txt''den alınmıştır.' -ForegroundColor DarkGray
+Write-Host 'Not: Dosyalar ve sıra en son oyun açılışının game.log.txt kaydından alınır;' -ForegroundColor DarkGray
+Write-Host 'sırayı değiştirdikten sonra oyunu bir kez açıp kapatıp Export-ModSet''i yeniden çalıştır.' -ForegroundColor DarkGray
 if ($problems) { Write-Host "$problems sorun bulundu." -ForegroundColor Red; exit 1 }
 Write-Host 'Sorun bulunmadı.' -ForegroundColor Green

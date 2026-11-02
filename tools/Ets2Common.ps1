@@ -50,7 +50,11 @@ function Get-Ets2WorkshopPaths {
 
 function Get-FileSha256 {
     param([string]$Path)
-    (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    # Get-FileHash, çağıranın -WhatIf'i açıksa hash hesaplamıyor; .NET ile doğrudan hesaplanır
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $fs = [System.IO.File]::OpenRead((Resolve-Path -LiteralPath $Path).ProviderPath)
+    try { return ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-', '') }
+    finally { $fs.Dispose(); $sha.Dispose() }
 }
 
 function Get-ScsFormat {
