@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. assistant\version.json içindeki sürümün son hanesini artırır (0.2.0 → 0.2.1). -Minor: 0.2.5 → 0.3.0, -NoBump: artırmaz.
-    2. New-FriendPackage.ps1 ile dist\arkadas-paketi[.zip] ve dist\ETS2-Mod-Asistani.exe'yi üretir.
+    2. New-FriendPackage.ps1 ile dist\arkadas-paketi[.zip] ve dist\ETS2-Mod-Asistanı.exe'yi üretir.
     3. Exe'yi masaüstüne kopyalar (eskisinin üzerine yazar).
 
     Kişisel ayarlar (host adı, modset, def dosyası) repoya girmez; local\yayin-ayarlari.json'dan okunur:
@@ -46,7 +46,7 @@ Write-Host "Sürüm     : $old → $new" -ForegroundColor Cyan
 
 # 2) Paket + exe
 $dist = Join-Path $repo 'dist'
-$exe = Join-Path $dist 'ETS2-Mod-Asistani.exe'
+$exe = Join-Path $dist 'ETS2-Mod-Asistanı.exe'
 $pkgArgs = @{
     ModSet   = & $inRepo $cfg.ModSet
     HostFile = @($cfg.HostFile | ForEach-Object { & $inRepo $_ })
@@ -61,4 +61,16 @@ if ($cfg.PSObject.Properties['Guide'] -and $cfg.Guide) { $pkgArgs.Guide = & $inR
 # 3) Masaüstü
 $target = Join-Path $Desktop (Split-Path $exe -Leaf)
 Copy-Item -LiteralPath $exe -Destination $target -Force
+# Eski adlarla kalmış kopyalar (sadece bizim exe'miz ise) kaldırılır
+foreach ($oldName in 'ETS2-Mod-Asistani.exe', 'ETS2-Konvoy-Asistani.exe') {
+    $old = Join-Path $Desktop $oldName
+    if ((Test-Path -LiteralPath $old) -and (Get-Item -LiteralPath $old).VersionInfo.ProductName -like 'ETS2 * Asistanı') {
+        Remove-Item -LiteralPath $old -Force
+        Write-Host "Eski kopya kaldırıldı: $old" -ForegroundColor DarkYellow
+    }
+}
+foreach ($oldName in 'ETS2-Mod-Asistani.exe', 'ETS2-Konvoy-Asistani.exe') {
+    $old = Join-Path $dist $oldName
+    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Force }
+}
 Write-Host "Masaüstü  : $target (sürüm $((Get-Item -LiteralPath $target).VersionInfo.FileVersion))" -ForegroundColor Green

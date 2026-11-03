@@ -13,7 +13,7 @@
 
 .EXAMPLE
     .\tools\New-FriendPackage.ps1 -ModSet .\modset-mustafa.json -HostFile .\original\promods\promods-eu-def-v284.scs `
-        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Exe .\dist\ETS2-Mod-Asistani.exe -Force
+        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Exe .\dist\ETS2-Mod-Asistanı.exe -Force
 #>
 [CmdletBinding()]
 param(
