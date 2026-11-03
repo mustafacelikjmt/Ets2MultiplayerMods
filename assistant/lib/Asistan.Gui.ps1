@@ -93,6 +93,49 @@ function New-Button([string]$Text, [int]$Width = 160, [switch]$Primary) {
     return $b
 }
 
+function Set-Text($Control, [string]$Text) {
+    # Sadece değiştiyse yaz: her saniyelik yenilemede aynı yazıyı tekrar atamak yazıyı titretiyor
+    if ($Control.Text -cne $Text) { $Control.Text = $Text }
+}
+
+function New-CheckBox([string]$Text) {
+    # Koyu zeminde Windows'un düz (Flat) kutusunun tiki görünmüyor; kutu ve yazı tamamen burada çiziliyor
+    $c = New-Control CheckBox @{
+        Text = $Text; AutoSize = $false; ForeColor = $script:T.Text; Font = $script:T.Font; FlatStyle = 'Flat'
+        Cursor = [System.Windows.Forms.Cursors]::Hand; BackColor = $script:T.Surface
+    }
+    $sz = [System.Windows.Forms.TextRenderer]::MeasureText($Text, $c.Font)
+    $c.Size = New-Object System.Drawing.Size(($sz.Width + 34), 30)
+    $c.Tag = @{ Hot = $false }
+    $c.Add_MouseEnter({ param($s, $e) $s.Tag.Hot = $true; $s.Invalidate() })
+    $c.Add_MouseLeave({ param($s, $e) $s.Tag.Hot = $false; $s.Invalidate() })
+    $c.Add_CheckedChanged({ param($s, $e) $s.Invalidate() })
+    $c.Add_Paint({
+            param($s, $e)
+            $g = $e.Graphics
+            $g.Clear($s.BackColor)
+            $g.SmoothingMode = 'AntiAlias'
+            $box = New-Object System.Drawing.Rectangle(1, [int](($s.Height - 18) / 2), 18, 18)
+            if ($s.Checked) {
+                $br = New-Object System.Drawing.SolidBrush($script:T.Accent); $g.FillRectangle($br, $box); $br.Dispose()
+                $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 2.2)
+                $g.DrawLines($pen, [System.Drawing.PointF[]]@(
+                        (New-Object System.Drawing.PointF(($box.X + 4), ($box.Y + 9.5))),
+                        (New-Object System.Drawing.PointF(($box.X + 7.5), ($box.Y + 13))),
+                        (New-Object System.Drawing.PointF(($box.X + 14), ($box.Y + 5)))))
+                $pen.Dispose()
+            } else {
+                $br = New-Object System.Drawing.SolidBrush($script:T.Surface2); $g.FillRectangle($br, $box); $br.Dispose()
+                $pen = New-Object System.Drawing.Pen($(if ($s.Tag.Hot) { $script:T.Accent } else { $script:T.Muted }), 1.4)
+                $g.DrawRectangle($pen, $box); $pen.Dispose()
+            }
+            $tr = New-Object System.Drawing.Rectangle(28, 0, ($s.Width - 28), $s.Height)
+            [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $tr, $s.ForeColor,
+                [System.Windows.Forms.TextFormatFlags]'Left, VerticalCenter, SingleLine, NoPrefix')
+        })
+    return $c
+}
+
 function New-Card([int]$Height, [string]$Dock = 'Top') {
     $p = New-Control Panel @{ Dock = $Dock; Height = $Height; BackColor = $script:T.Surface; Padding = New-Object System.Windows.Forms.Padding(18, 14, 18, 14) }
     $p.Add_Paint({
@@ -204,7 +247,7 @@ function Show-AssistantWindow {
         Bg = $null; AfterMove = $null; DropPaths = @(); LastBackup = $null }
 
     $form = New-Control Form @{
-        Text = "ETS2 Konvoy Asistanı $($Ctx.Version)"; Size = New-Object System.Drawing.Size(1100, 780)
+        Text = "ETS2 Mod Asistanı $($Ctx.Version)"; Size = New-Object System.Drawing.Size(1100, 780)
         MinimumSize = New-Object System.Drawing.Size(980, 700); StartPosition = 'CenterScreen'; Font = $T.Font
         BackColor = $T.Bg; ForeColor = $T.Text
     }
@@ -215,7 +258,7 @@ function Show-AssistantWindow {
     # --- Üst bant ---------------------------------------------------------------------------
     $hostName = Get-Prop $Ctx.Package 'host' 'host'
     $header = New-Control Panel @{ Dock = 'Top'; Height = 72; Width = 1100; BackColor = $T.HeaderBg }
-    $header.Controls.Add((New-Control Label @{ Text = 'ETS2 Konvoy Asistanı'; Font = $T.FontTitle; ForeColor = $T.Text; AutoSize = $true; Location = New-Object System.Drawing.Point(22, 12) }))
+    $header.Controls.Add((New-Control Label @{ Text = 'ETS2 Mod Asistanı'; Font = $T.FontTitle; ForeColor = $T.Text; AutoSize = $true; Location = New-Object System.Drawing.Point(22, 12) }))
     $header.Controls.Add((New-Control Label @{
                 Text = "$($Ctx.Pack.name)   ·   Host: $hostName   ·   sürüm $($Ctx.Version)"; ForeColor = $T.Muted; Font = $T.FontSmall
                 AutoSize = $true; Location = New-Object System.Drawing.Point(24, 44)
@@ -283,12 +326,8 @@ function Show-AssistantWindow {
     $btnOpen = New-Button 'Sayfayı aç' 170 -Primary
     $btnPick = New-Button 'Dosyayı elle seç…' 170
     $btnSkip = New-Button 'Sonraya bırak' 140
-    $chkPremium = New-Control CheckBox @{
-        Text = 'ProMods Premium aldım (bekleme yok, tek dosya)'; AutoSize = $true; ForeColor = $T.Text; FlatStyle = 'Flat'
-        Margin = New-Object System.Windows.Forms.Padding(8, 10, 0, 0); Cursor = [System.Windows.Forms.Cursors]::Hand
-    }
-    $chkPremium.FlatAppearance.BorderColor = $T.Muted
-    $chkPremium.FlatAppearance.CheckedBackColor = $T.Accent
+    $chkPremium = New-CheckBox 'ProMods Premium aldım (bekleme yok, tek dosya)'
+    $chkPremium.Margin = New-Object System.Windows.Forms.Padding(8, 4, 0, 0)
     $chkPremium.Visible = Test-HasVariant $Ctx 'premium'
     $chkPremium.Checked = ($Ctx.State.PreferredVariant -eq 'premium')
     $flowDl.Controls.AddRange(@($btnOpen, $btnPick, $btnSkip, $chkPremium))
@@ -398,6 +437,9 @@ function Show-AssistantWindow {
     }
     foreach ($b in $navButtons) { $b.Add_Click({ param($s, $e) & $showPage ([int]$s.Tag) }) }
 
+    # İzlenen klasör yazısı sabit; sadece doğrulama/taşıma sürerken geçici durum gösterilir
+    $watchText = "İzlenen klasör: $($Ctx.DownloadsPath)   ·   tarayıcın başka yere kaydediyorsa 'Dosyayı elle seç'"
+    $lblWatch.Text = $watchText
     $statusText = { param($msg) $lblWatch.Text = $msg; [System.Windows.Forms.Application]::DoEvents() }
 
     $fillPrereq = {
@@ -475,41 +517,43 @@ function Show-AssistantWindow {
 
         $wf = if (@($act.Waits.Values | Where-Object { $_.Busy }).Count) { $T.FontH2 } else { $T.FontBig }
         if ($lblWait.Font -ne $wf) { $lblWait.Font = $wf }
-        $lblWait.Text = ($waitLines -join "`r`n")
-        $lblWaitNote.Text = if ($act.Waits.Count) { "promods.net bekleme süresi.`r`nSüre dolmadan o sitede yeni dosyaya basma,`r`nsayaç baştan başlar." } else { '' }
+        Set-Text $lblWait $(($waitLines -join "`r`n"))
+        Set-Text $lblWaitNote $(if ($act.Waits.Count) { "promods.net bekleme süresi.`r`nSüre dolmadan o sitede yeni dosyaya basma,`r`nsayaç baştan başlar." } else { '' })
 
         switch ($act.Kind) {
             'download' {
                 $m = $act.Item.Mod; $v = $act.Item.Variant; $s = $act.Item.Spec
-                $lblAction.Text = "Sıradaki:  $($s.Display)    ($($m.Name) $($m.Version))"
+                Set-Text $lblAction $("Sıradaki:  $($s.Display)    ($($m.Name) $($m.Version))")
                 $lines = @()
                 foreach ($l in @($v.Instructions) + @($m.Notes)) { $lines += '•  ' + ($l -replace '\{file\}', $s.Display) }
                 if ($s.Status -eq 'error') { $lines = @("•  Önceki indirme hatalıydı: $($s.Detail)") + $lines }
                 $lines += '•  İnen dosyayı asistan kendisi bulur ve doğrular; sen bir şey taşıma.'
-                $lblInstr.Text = $lines -join "`r`n"
+                Set-Text $lblInstr $($lines -join "`r`n")
                 $btnOpen.Enabled = $true; $btnPick.Enabled = $true; $btnSkip.Enabled = $true
-                $form.Text = "ETS2 Konvoy Asistanı $($Ctx.Version)"
+                Set-Text $form $("ETS2 Mod Asistanı $($Ctx.Version)")
             }
             'wait' {
-                $lblAction.Text = 'Bekleme süresi doluyor…'
-                $lblInstr.Text = "•  Şu an indirilecek başka dosya yok. Sayaç bitince asistan ses çıkarır ve sıradaki dosyayı gösterir.`r`n•  Pencereyi açık bırak, bilgisayarı uyku moduna alma."
+                Set-Text $lblAction $('Bekleme süresi doluyor…')
+                Set-Text $lblInstr $("•  Şu an indirilecek başka dosya yok. Sayaç bitince asistan ses çıkarır ve sıradaki dosyayı gösterir.`r`n•  Pencereyi açık bırak, bilgisayarı uyku moduna alma.")
                 $btnOpen.Enabled = $false; $btnPick.Enabled = $true; $btnSkip.Enabled = $false
-                $form.Text = "($($waitLines -join ', ')) ETS2 Konvoy Asistanı"
+                Set-Text $form $("($($waitLines -join ', ')) ETS2 Mod Asistanı")
             }
             'downloading' {
-                $lblAction.Text = 'İndirmeler sürüyor…'
-                $lblInstr.Text = '•  Tarayıcıdaki indirmelerin bitmesini bekle. Biten dosyalar otomatik olarak alınır.'
+                Set-Text $lblAction $('İndirmeler sürüyor…')
+                Set-Text $lblInstr $('•  Tarayıcıdaki indirmelerin bitmesini bekle. Biten dosyalar otomatik olarak alınır.')
                 $btnOpen.Enabled = $false; $btnPick.Enabled = $true; $btnSkip.Enabled = $false
             }
             'done' {
-                $lblAction.Text = 'Bütün dosyalar indi ✓'
-                $lblInstr.Text = '•  "3  Kur" sayfasına geç ve "Arşivleri aç ve kur" düğmesine bas.'
+                # Metin bir kez yazılır (iki kez yazmak her saniye yazının yanıp sönmesine yol açıyordu)
                 if (-not @($Ctx.Mods | Where-Object { -not $_.Installed }).Count) {
-                    $lblAction.Text = 'Bütün modlar oyuna kurulu ✓'
-                    $lblInstr.Text = '•  "4  Mod sırası" sayfasındaki sırayla modları oyunda etkinleştir.'
+                    Set-Text $lblAction 'Bütün modlar oyuna kurulu ✓'
+                    Set-Text $lblInstr '•  "4  Mod sırası" sayfasındaki sırayla modları oyunda etkinleştir.'
+                } else {
+                    Set-Text $lblAction 'Bütün dosyalar indi ✓'
+                    Set-Text $lblInstr '•  "3  Kur" sayfasına geç ve "Arşivleri aç ve kur" düğmesine bas.'
                 }
                 $btnOpen.Enabled = $false; $btnPick.Enabled = $false; $btnSkip.Enabled = $false
-                $form.Text = "ETS2 Konvoy Asistanı $($Ctx.Version)"
+                Set-Text $form $("ETS2 Mod Asistanı $($Ctx.Version)")
             }
         }
 
@@ -518,13 +562,13 @@ function Show-AssistantWindow {
         $ui.Ratio = if ($tot.TotalBytes) { [Math]::Min(1.0, $tot.DoneBytes / $tot.TotalBytes) } else { 0.0 }
         $trackFill.Width = [int]($track.Width * $ui.Ratio)
         $trackFill.BackColor = if ($ui.Ratio -ge 1) { $green } else { $T.Accent }
-        $lblTotal.Text = "$($tot.DoneFiles) / $($tot.Files) dosya   ·   $(Format-Size $tot.DoneBytes) / $(Format-Size $tot.TotalBytes)"
+        Set-Text $lblTotal $("$($tot.DoneFiles) / $($tot.Files) dosya   ·   $(Format-Size $tot.DoneBytes) / $(Format-Size $tot.TotalBytes)")
         $hostOk = -not @(Get-HostFileReport $Ctx | Where-Object { $_.State -ne 'ok' }).Count
         $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc
         if ($act.Kind -eq 'done' -and -not $hostOk) { $lblInstall.Text = 'Host''tan gelen dosya eksik/farklı, "1  Ön kontrol" sayfasına bak.'; $lblInstall.ForeColor = $red }
         $sum = Get-InstallSummary $Ctx
         $allIn = $sum.Total -and $sum.Installed -eq $sum.Total
-        $lblInstSum.Text = if ($allIn) { "Oyunda kurulu:  $($sum.Total) / $($sum.Total)  ✓" } else { "Oyunda kurulu:  $($sum.Installed) / $($sum.Total)" }
+        Set-Text $lblInstSum $(if ($allIn) { "Oyunda kurulu:  $($sum.Total) / $($sum.Total)  ✓" } else { "Oyunda kurulu:  $($sum.Installed) / $($sum.Total)" })
         $lblInstSum.ForeColor = if ($allIn) { $green } else { $T.Text }
 
         # Sayfa düğmelerinde tamamlanma işareti
@@ -682,10 +726,9 @@ function Show-AssistantWindow {
                 & $onBgDone $bg.Kind $out $err
             }
             if ($ui.PendingDrop) { & $handleDrop }
-            $lblWatch.Text = "İzlenen klasör: $($Ctx.DownloadsPath)"
             [void](Update-InstalledState $Ctx)
             [void](Update-AssistantDownloads $Ctx -Notify $statusText)
-            $lblWatch.Text = "İzlenen klasör: $($Ctx.DownloadsPath)   ·   tarayıcın başka yere kaydediyorsa 'Dosyayı elle seç'"
+            if ($lblWatch.Text -ne $watchText) { $lblWatch.Text = $watchText; $lblWatch.ForeColor = $T.Muted }
             & $refresh
             foreach ($p in @('InstallProc', 'ExportProc', 'AddProc')) {
                 $proc = $ui[$p]

@@ -590,7 +590,7 @@ function Move-ModsToBackup {
         try { Move-Item -LiteralPath (Join-Path $ModFolder $n) -Destination (Join-Path $dir $n) -ErrorAction Stop; $moved.Add($n) }
         catch { $failed.Add("$n ($($_.Exception.Message))") }
     }
-    $note = @("Bu dosyalar ETS2 Konvoy Asistanı tarafından oyunun mod klasöründen kaldırıldı ($(Get-Date -Format 'dd.MM.yyyy HH:mm')).",
+    $note = @("Bu dosyalar ETS2 Mod Asistanı tarafından oyunun mod klasöründen kaldırıldı ($(Get-Date -Format 'dd.MM.yyyy HH:mm')).",
         'Geri koymak için bu klasördeki dosyaları şuraya taşı:', "  $ModFolder", '', 'Taşınanlar:') + @($moved | ForEach-Object { "  $_" })
     [System.IO.File]::WriteAllLines((Join-Path $dir 'GERI-KOYMAK-ICIN.txt'), $note, (New-Object System.Text.UTF8Encoding $true))
     if (-not $moved.Count) { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }

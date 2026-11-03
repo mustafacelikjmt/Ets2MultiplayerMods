@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    ETS2 Konvoy İndirme Asistanı. Host'un verdiği paket klasöründeki Asistan.cmd ile açılır.
+    ETS2 Mod Asistanı. Host'un verdiği paket klasöründeki Asistan.cmd ile açılır.
 
 .DESCRIPTION
     Hangi dosyanın nereden indirileceğini sırayla gösterir, indirme sayfasını tarayıcıda açar,
@@ -46,6 +46,6 @@ try {
     $msg = "$($_.Exception.Message)`r`n`r`n$($_.InvocationInfo.PositionMessage)"
     try { Set-Content -LiteralPath (Join-Path $PackageRoot 'asistan-hata.log') -Value $msg -Encoding UTF8 } catch { }
     if ($Snapshot) { throw }
-    [System.Windows.Forms.MessageBox]::Show("Asistan açılamadı:`r`n`r`n$msg", 'ETS2 Konvoy İndirme Asistanı', 'OK', 'Error') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("Asistan açılamadı:`r`n`r`n$msg", 'ETS2 Mod Asistanı', 'OK', 'Error') | Out-Null
     exit 1
 }

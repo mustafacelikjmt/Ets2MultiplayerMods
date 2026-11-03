@@ -1,4 +1,4 @@
-// ETS2 Konvoy Asistanı – tek dosyalık başlatıcı.
+// ETS2 Mod Asistanı – tek dosyalık başlatıcı.
 // Paketin zip'i exe'ye gömülüdür (kaynak adı "paket.zip"). Açılınca paketi C:\ETS2Konvoy'a
 // (yazılamazsa %LOCALAPPDATA%\ETS2Konvoy) çıkarır ve asistanı başlatır. Her açılışta asistan
 // ve araçlar yenilenir; kullanıcının verisi (asistan-durum.json, indirilen dosyalar) korunur.
@@ -12,7 +12,7 @@ using System.Windows.Forms;
 
 static class Launcher
 {
-    const string Title = "ETS2 Konvoy Asistanı";
+    const string Title = "ETS2 Mod Asistanı";
 
     [STAThread]
     static int Main(string[] args)

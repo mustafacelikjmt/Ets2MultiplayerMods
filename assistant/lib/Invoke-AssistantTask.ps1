@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $oldVersions = Join-Path $PackageRoot ("yedek-modlar\{0:yyyy-MM-dd_HHmmss}_eski-surumler" -f (Get-Date))
 try {
     if ($Task -eq 'add') {
-        $Host.UI.RawUI.WindowTitle = 'ETS2 Konvoy – Bırakılan dosyalar kuruluyor'
+        $Host.UI.RawUI.WindowTitle = 'ETS2 Mod Asistanı – Bırakılan dosyalar kuruluyor'
         $list = [System.IO.File]::ReadAllText($FileList, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
         $incoming = Join-Path $PackageRoot 'indirilenler'
         $files = @{}
@@ -83,7 +83,7 @@ try {
             $res | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultFile -Encoding UTF8
         }
     } elseif ($Task -eq 'install') {
-        $Host.UI.RawUI.WindowTitle = 'ETS2 Konvoy – Kurulum'
+        $Host.UI.RawUI.WindowTitle = 'ETS2 Mod Asistanı – Kurulum'
         Write-Host 'Arşivler açılıyor (birkaç dakika sürebilir, pencereyi kapatma)...' -ForegroundColor Cyan
         $modlar = Join-Path $PackageRoot 'modlar'
         & (Join-Path $ToolsDir 'Expand-ModArchives.ps1') -Source (Join-Path $PackageRoot 'indirilenler') -Destination $modlar -NoHint
@@ -94,7 +94,7 @@ try {
         if ($ResultFile) { $installArgs.ResultFile = $ResultFile }
         & (Join-Path $ToolsDir 'Install-ModPack.ps1') @installArgs
     } else {
-        $Host.UI.RawUI.WindowTitle = 'ETS2 Konvoy – Kontrol dosyası'
+        $Host.UI.RawUI.WindowTitle = 'ETS2 Mod Asistanı – Kontrol dosyası'
         $out = Join-Path $PackageRoot "modset-$Label.json"
         & (Join-Path $ToolsDir 'Export-ModSet.ps1') -Label $Label -OutFile $out
         if ($ResultFile) { [pscustomobject]@{ Ok = $true; File = $out } | ConvertTo-Json | Set-Content -LiteralPath $ResultFile -Encoding UTF8 }

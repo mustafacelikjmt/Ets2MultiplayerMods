@@ -13,7 +13,7 @@
 
 .EXAMPLE
     .\tools\New-FriendPackage.ps1 -ModSet .\modset-mustafa.json -HostFile .\original\promods\promods-eu-def-v284.scs `
-        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Exe .\dist\ETS2-Konvoy-Asistani.exe -Force
+        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Exe .\dist\ETS2-Mod-Asistani.exe -Force
 #>
 [CmdletBinding()]
 param(
@@ -78,7 +78,7 @@ if ($Exe) {
     $fw = Split-Path $csc -Parent
     $version = (Get-Content -LiteralPath (Join-Path $assistant 'version.json') -Raw | ConvertFrom-Json).assistantVersion
     $info = Join-Path ([System.IO.Path]::GetTempPath()) "ets2konvoy-asminfo-$PID.cs"
-    $asm = "using System.Reflection;`r`n[assembly: AssemblyTitle(`"ETS2 Konvoy Asistanı`")]`r`n[assembly: AssemblyProduct(`"ETS2 Konvoy Asistanı`")]`r`n" +
+    $asm = "using System.Reflection;`r`n[assembly: AssemblyTitle(`"ETS2 Mod Asistanı`")]`r`n[assembly: AssemblyProduct(`"ETS2 Mod Asistanı`")]`r`n" +
         "[assembly: AssemblyDescription(`"$($Pack) · host: $HostName`")]`r`n[assembly: AssemblyCompany(`"$HostName`")]`r`n" +
         "[assembly: AssemblyCopyright(`"© $((Get-Date).Year) $HostName`")]`r`n[assembly: AssemblyVersion(`"$version.0`")]`r`n[assembly: AssemblyFileVersion(`"$version.0`")]`r`n"
     [System.IO.File]::WriteAllText($info, $asm, (New-Object System.Text.UTF8Encoding $true))
