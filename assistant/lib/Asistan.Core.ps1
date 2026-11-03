@@ -532,8 +532,8 @@ function Update-InstalledState($Ctx) {
 
 function Get-InstallSummary($Ctx) {
     # Host'un elle kurduğu modlardan hangileri bu bilgisayarda (asistanla) kurulu
-    $names = if ($Ctx.ModSet) { @($Ctx.ModSet.Mods | Where-Object { $_.Source -eq 'local' } | ForEach-Object { $_.File }) }
-    else { @($Ctx.Mods | ForEach-Object { $_.Provides }) + @(Get-Prop $Ctx.Pack 'hostFiles' @() | ForEach-Object { $_.name }) }
+    $names = @(if ($Ctx.ModSet) { $Ctx.ModSet.Mods | Where-Object { $_.Source -eq 'local' } | ForEach-Object { $_.File } }
+        else { @($Ctx.Mods | ForEach-Object { $_.Provides }) + @(Get-Prop $Ctx.Pack 'hostFiles' @() | ForEach-Object { $_.name }) })
     $missing = @($names | Where-Object { -not (Test-FileInstalled $Ctx $_) })
     @{ Total = $names.Count; Installed = $names.Count - $missing.Count; Missing = $missing }
 }

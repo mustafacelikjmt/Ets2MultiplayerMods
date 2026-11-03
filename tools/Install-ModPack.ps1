@@ -81,7 +81,8 @@ if ($expected.Count) {
     }
 }
 if ($ResultFile) {
-    $missing = if ($expected.Count) { @($stillMissing | Sort-Object) } else { @() }
+    # @() dışarıda: if'in çıktısı açılır, boş liste $null olur (StrictMode'da .Count hata verir)
+    $missing = @(if ($expected.Count) { $stillMissing | Sort-Object })
     [pscustomobject]@{
         # ToArray: PS 5.1'de boş List'i @() ile hashtable'a koymak "Bağımsız değişken türleri eşleşmiyor" hatası veriyor
         Ok = (-not $missing.Count -and -not $different.Count); Missing = $missing; Different = $different.ToArray(); Unlisted = $unlisted.ToArray()
