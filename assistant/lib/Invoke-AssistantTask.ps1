@@ -15,6 +15,8 @@ param(
     [string]$ResultFile
 )
 $ErrorActionPreference = 'Stop'
+# Üzerine yazılacak eski sürümler buraya taşınır (sadece gerekirse oluşur)
+$oldVersions = Join-Path $PackageRoot ("yedek-modlar\{0:yyyy-MM-dd_HHmmss}_eski-surumler" -f (Get-Date))
 try {
     if ($Task -eq 'add') {
         $Host.UI.RawUI.WindowTitle = 'ETS2 Konvoy – Bırakılan dosyalar kuruluyor'
@@ -63,7 +65,7 @@ try {
             else { New-Item -ItemType Directory -Path $staging | Out-Null }
             Write-Host ''
             Write-Host 'Oyunun mod klasörüne kuruluyor...' -ForegroundColor Cyan
-            $installArgs = @{ Source = $staging; Force = $true; AllowUnlisted = $true }
+            $installArgs = @{ Source = $staging; Force = $true; AllowUnlisted = $true; BackupDir = $oldVersions }
             if ($ModSet) { $installArgs.ModSet = $ModSet }
             if ($ResultFile) { $installArgs.ResultFile = $ResultFile }
             & (Join-Path $ToolsDir 'Install-ModPack.ps1') @installArgs
@@ -87,7 +89,7 @@ try {
         & (Join-Path $ToolsDir 'Expand-ModArchives.ps1') -Source (Join-Path $PackageRoot 'indirilenler') -Destination $modlar -NoHint
         Write-Host ''
         Write-Host 'Oyunun mod klasörüne kuruluyor ve host''un dosyalarıyla karşılaştırılıyor...' -ForegroundColor Cyan
-        $installArgs = @{ Source = $modlar; Force = $true }
+        $installArgs = @{ Source = $modlar; Force = $true; BackupDir = $oldVersions }
         if ($ModSet) { $installArgs.ModSet = $ModSet }
         if ($ResultFile) { $installArgs.ResultFile = $ResultFile }
         & (Join-Path $ToolsDir 'Install-ModPack.ps1') @installArgs

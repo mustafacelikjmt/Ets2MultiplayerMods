@@ -200,7 +200,8 @@ function Show-AssistantWindow {
     $T = $script:T
     $green = $T.Green; $blue = $T.Accent; $red = $T.Red; $orange = $T.Orange
     $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; AddProc = $null
-        PendingDrop = $null; Prereq = @(); Page = 0; Ratio = 0.0; DragHot = $false }
+        PendingDrop = $null; Prereq = @(); Page = 0; Ratio = 0.0; DragHot = $false
+        Bg = $null; AfterMove = $null; DropPaths = @(); LastBackup = $null }
 
     $form = New-Control Form @{
         Text = "ETS2 Konvoy Asistanı $($Ctx.Version)"; Size = New-Object System.Drawing.Size(1100, 780)
@@ -251,14 +252,17 @@ function Show-AssistantWindow {
     $lvCheck = New-DarkList @(@('Kontrol', 360), @('Durum', 90), @('Ayrıntı', 480))
     $checkCard = New-Card 0 'Fill'; $checkCard.Padding = New-Object System.Windows.Forms.Padding(1)
     $checkCard.Controls.Add($lvCheck)
-    $flowCheck = New-Flow 50; $flowCheck.Dock = 'Bottom'; $flowCheck.Padding = New-Object System.Windows.Forms.Padding(0, 12, 0, 0)
+    $flowCheck = New-Flow 52; $flowCheck.Dock = 'Bottom'; $flowCheck.Padding = New-Object System.Windows.Forms.Padding(0, 14, 0, 0)
     $btnRecheck = New-Button 'Tekrar kontrol et' 170
-    $lblCheck = New-Control Label @{ AutoSize = $true; Margin = New-Object System.Windows.Forms.Padding(8, 10, 0, 0); ForeColor = $T.Muted }
-    $flowCheck.Controls.AddRange(@($btnRecheck, $lblCheck))
+    $btnClean = New-Button 'Farklı modları kaldır ve yedekle' 280
+    $btnBackupOpen = New-Button 'Yedek klasörünü aç' 180
+    $btnBackupOpen.Visible = Test-Path -LiteralPath (Get-BackupRoot $Ctx)
+    $flowCheck.Controls.AddRange(@($btnRecheck, $btnClean, $btnBackupOpen))
+    $lblCheck = New-Text '' $T.FontSemi $T.Muted 28
     Add-Stack $pageCheck @(
         (New-Text 'Ön kontrol' $T.FontH2 $T.Text 30),
-        (New-Text 'Oyun sürümü, harita DLC''leri, disk yeri ve host''tan gelen dosyalar. Kırmızı satır varsa önce onu çöz.' $T.Font $T.Muted 26),
-        (New-Spacer 10), $flowCheck, $checkCard)
+        (New-Text 'Oyun sürümü, harita DLC''leri, disk yeri, host''tan gelen dosyalar ve mod klasöründeki diğer modlar. Kırmızı satır varsa önce onu çöz.' $T.Font $T.Muted 26),
+        $lblCheck, (New-Spacer 4), $flowCheck, $checkCard)
 
     # --- 2. İndir ---------------------------------------------------------------------------
     $pageDl = New-Page
@@ -536,11 +540,107 @@ function Show-AssistantWindow {
         }
     }
 
+    # --- Mod klasörünü temizleme (arka planda: büyük dosyaların hash'i pencereyi dondurmasın) ---
+    $startBg = {
+        param([string]$Kind, [hashtable]$Data)
+        $ps = [powershell]::Create()
+        [void]$ps.AddScript({
+                param($Common, $Core, $Kind, $Data)
+                . $Common; . $Core
+                if ($Kind -eq 'scan') {
+                    @{ Conflicts = @(Get-ModFolderConflicts -ModFolder $Data.ModFolder -ModSet $Data.ModSet -Installed $Data.Installed -HashCache $Data.Hashes); Hashes = $Data.Hashes }
+                } else { Move-ModsToBackup -ModFolder $Data.ModFolder -Names $Data.Names -BackupRoot $Data.BackupRoot }
+            })
+        [void]$ps.AddArgument((Join-Path $Ctx.ToolsDir 'Ets2Common.ps1')).AddArgument((Join-Path $Ctx.AssistantDir 'lib\Asistan.Core.ps1')).AddArgument($Kind).AddArgument($Data)
+        $ui.Bg = @{ Kind = $Kind; Ps = $ps; Handle = $ps.BeginInvoke() }
+        $btnClean.Enabled = $false
+    }
+
+    $formatConflicts = {
+        param($List)
+        $lines = @($List | Select-Object -First 15 | ForEach-Object { "•  $($_.Name)   ($($_.Reason), $(Format-Size $_.Size))" })
+        if (@($List).Count -gt 15) { $lines += "… ve $(@($List).Count - 15) tane daha" }
+        $lines -join "`r`n"
+    }
+
+    $startMove = {
+        param($List)
+        $lblCheck.Text = 'Modlar yedeğe taşınıyor…'; $lblCheck.ForeColor = $blue
+        & $startBg 'move' @{ ModFolder = $Ctx.ModFolder; Names = @($List | ForEach-Object { $_.Name }); BackupRoot = (Get-BackupRoot $Ctx) }
+    }
+
+    $onBgDone = {
+        param([string]$Kind, $Out, $Err)
+        $btnClean.Enabled = $true
+        if ($Err -or -not $Out) {
+            $lblCheck.Text = "Mod klasörü işlemi hata verdi: $(if ($Err) { $Err } else { 'sonuç yok' })"; $lblCheck.ForeColor = $red
+            $ui.AfterMove = $null; return
+        }
+        if ($Kind -eq 'scan') {
+            foreach ($k in $Out.Hashes.Keys) { $Ctx.State.Hashes[$k] = $Out.Hashes[$k] }
+            Save-AssistantState $Ctx
+            $list = @($Out.Conflicts)
+            if (-not $list.Count) {
+                $lblCheck.Text = 'Mod klasöründe host''un listesi dışında ya da farklı mod yok ✓'; $lblCheck.ForeColor = $green
+                return
+            }
+            $q = [System.Windows.Forms.MessageBox]::Show($form,
+                "Oyunun mod klasöründe host'unkilerle çakışan $($list.Count) mod var:`r`n`r`n$(& $formatConflicts $list)`r`n`r`nBunlar mod klasöründen kaldırılıp yedeğe taşınsın mı? (Silinmez.)`r`nYedek: $(Get-BackupRoot $Ctx)`r`nOyun kapalı olmalı.",
+                'Farklı modları kaldır ve yedekle', 'YesNo', 'Question')
+            if ($q -eq 'Yes') { & $startMove $list }
+            else { $lblCheck.Text = "Mod klasöründe $($list.Count) farklı mod var; dokunulmadı."; $lblCheck.ForeColor = $orange }
+            return
+        }
+        # move
+        $ui.LastBackup = $Out.Dir
+        $btnBackupOpen.Visible = $true
+        $msg = "$(@($Out.Moved).Count) mod yedeğe taşındı:`r`n$($Out.Dir)"
+        if (@($Out.Failed).Count) { $msg += "`r`n`r`nTaşınamadı (oyun açık olabilir):`r`n$(@($Out.Failed) -join "`r`n")" }
+        & $fillPrereq
+        $lblCheck.Text = $(if (@($Out.Failed).Count) { "$(@($Out.Moved).Count) mod yedeklendi, $(@($Out.Failed).Count) tanesi taşınamadı." } else { "$(@($Out.Moved).Count) mod yedeğe taşındı ✓  ($($Out.Dir))" })
+        $lblCheck.ForeColor = if (@($Out.Failed).Count) { $orange } else { $green }
+        $after = $ui.AfterMove; $ui.AfterMove = $null
+        if ($after) { & $after }
+        else { [System.Windows.Forms.MessageBox]::Show($form, $msg, 'Yedekleme') | Out-Null }
+    }
+
+    $startDropInstall = {
+        $rf = Join-Path $Ctx.PackageRoot 'birakma-sonucu.json'
+        if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
+        $ui.AddProc = Start-DropInstall $Ctx $ui.DropPaths $rf
+        & $showPage 2
+        $lblInstall.Text = 'Bırakılan dosyalar kuruluyor… Siyah pencerede "Bitti" yazınca Enter''a bas.'; $lblInstall.ForeColor = $blue
+    }
+
+    $startFullInstall = {
+        $rf = Join-Path $Ctx.PackageRoot 'kurulum-sonucu.json'
+        if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
+        $ui.InstallProc = Start-AssistantTask $Ctx install -ResultFile $rf
+        $btnInstall.Enabled = $false
+        & $showPage 2
+        $lblInstall.Text = 'Kurulum sürüyor… Siyah pencerede "Bitti" yazınca Enter''a bas.'; $lblInstall.ForeColor = $blue
+    }
+
+    $askConflictsThen = {
+        # Kurmadan önce: host'un listesinde olmayan modlar varsa kaldırılıp yedeklensin mi? (sadece adlara bakılır, anında)
+        param([scriptblock]$Then)
+        $list = @(Get-ModFolderConflicts -ModFolder $Ctx.ModFolder -ModSet $Ctx.ModSet -Quick)
+        if (-not $list.Count) { & $Then; return }
+        $q = [System.Windows.Forms.MessageBox]::Show($form,
+            "Oyunun mod klasöründe host'un listesinde olmayan $($list.Count) mod var:`r`n`r`n$(& $formatConflicts $list)`r`n`r`nKurmadan önce bunlar kaldırılıp yedeğe taşınsın mı? (Silinmez.)`r`n`r`nEvet: yedeğe taşı, sonra kur`r`nHayır: dokunma, sadece kur`r`nİptal: vazgeç",
+            'Çakışan modlar', 'YesNoCancel', 'Question')
+        if ($q -eq 'Cancel') { return }
+        if ($q -eq 'No') { & $Then; return }
+        $ui.AfterMove = $Then
+        & $showPage 0
+        & $startMove $list
+    }
+
     $handleDrop = {
         # Sürükle-bırak olayında soru sorulmaz (Gezgin bırakma bitene kadar donar); zamanlayıcıdan çağrılır
         $paths = @($ui.PendingDrop); $ui.PendingDrop = $null
-        if ($ui.AddProc -or $ui.InstallProc) {
-            [System.Windows.Forms.MessageBox]::Show($form, 'Önceki kurulum hâlâ sürüyor. Siyah pencere kapanınca tekrar bırak.', 'Dosya ekleme') | Out-Null
+        if ($ui.AddProc -or $ui.InstallProc -or $ui.Bg) {
+            [System.Windows.Forms.MessageBox]::Show($form, 'Önceki iş hâlâ sürüyor. Bitince tekrar bırak.', 'Dosya ekleme') | Out-Null
             return
         }
         $names = @($paths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
@@ -549,11 +649,8 @@ function Show-AssistantWindow {
             "Bırakılanlar:`r`n$shown`r`n`r`nArşivler açılıp modlar oyunun mod klasörüne kurulacak; host'un listesindekiler host'unkiyle karşılaştırılır.`r`nOyun kapalı olmalı. Devam edilsin mi?",
             'Dosyaları kur', 'YesNo', 'Question')
         if ($q -ne 'Yes') { return }
-        $rf = Join-Path $Ctx.PackageRoot 'birakma-sonucu.json'
-        if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
-        $ui.AddProc = Start-DropInstall $Ctx $paths $rf
-        & $showPage 2
-        $lblInstall.Text = 'Bırakılan dosyalar kuruluyor… Siyah pencerede "Bitti" yazınca Enter''a bas.'; $lblInstall.ForeColor = $blue
+        $ui.DropPaths = $paths
+        & $askConflictsThen $startDropInstall
     }
 
     $showAddResult = {
@@ -565,6 +662,7 @@ function Show-AssistantWindow {
         $unl = @(Get-Prop $res 'Unlisted' @()); if ($unl.Count) { $lines += "Host'un listesinde yok (kuruldu ama konvoyda etkinleştirme): $($unl -join ', ')" }
         $mp = @(Get-Prop $res 'MissingParts' @()); if ($mp.Count) { $lines += "Parçası eksik, açılamadı: $($mp -join '; ')" }
         $ign = @(Get-Prop $res 'Ignored' @()); if ($ign.Count) { $lines += "Mod dosyası değil, atlandı: $($ign -join ', ')" }
+        $bk = @(Get-Prop $res 'BackedUp' @()); if ($bk.Count) { $lines += "Eski sürümü yedeğe alınıp yenisi kuruldu: $($bk -join ', ')" }
         $lblInstall.Text = $lines -join "`r`n"
         $lblInstall.ForeColor = if ($diff.Count -or $mp.Count) { $red } else { $green }
     }
@@ -573,6 +671,16 @@ function Show-AssistantWindow {
         if ($ui.Busy) { return }
         $ui.Busy = $true
         try {
+            if ($ui.Bg -and $ui.Bg.Handle.IsCompleted) {
+                $bg = $ui.Bg; $ui.Bg = $null
+                $out = $null; $err = $null
+                try {
+                    $out = @($bg.Ps.EndInvoke($bg.Handle)) | Select-Object -Last 1
+                    if ($bg.Ps.Streams.Error.Count) { $err = $bg.Ps.Streams.Error[0].ToString() }
+                } catch { $err = $_.Exception.Message }
+                $bg.Ps.Dispose()
+                & $onBgDone $bg.Kind $out $err
+            }
             if ($ui.PendingDrop) { & $handleDrop }
             $lblWatch.Text = "İzlenen klasör: $($Ctx.DownloadsPath)"
             [void](Update-InstalledState $Ctx)
@@ -635,14 +743,24 @@ function Show-AssistantWindow {
             & $refresh
         })
     $btnInstall.Add_Click({
+            if ($ui.Bg) { return }
             $q = [System.Windows.Forms.MessageBox]::Show($form,
                 "Arşivler açılıp oyunun mod klasörüne kurulacak (birkaç dakika sürer).`r`nOyun kapalı olmalı. Devam edilsin mi?", 'Kurulum', 'YesNo', 'Question')
             if ($q -ne 'Yes') { return }
-            $rf = Join-Path $Ctx.PackageRoot 'kurulum-sonucu.json'
-            if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
-            $ui.InstallProc = Start-AssistantTask $Ctx install -ResultFile $rf
-            $btnInstall.Enabled = $false
-            $lblInstall.Text = 'Kurulum sürüyor… Siyah pencerede "Bitti" yazınca Enter''a bas.'; $lblInstall.ForeColor = $blue
+            & $askConflictsThen $startFullInstall
+        })
+    $btnClean.Add_Click({
+            if ($ui.Bg -or $ui.AddProc -or $ui.InstallProc) { return }
+            if (-not $Ctx.ModFolder -or -not (Test-Path -LiteralPath $Ctx.ModFolder)) {
+                [System.Windows.Forms.MessageBox]::Show($form, 'Oyunun mod klasörü bulunamadı. Oyunu bir kez açıp kapat.', 'Mod klasörü') | Out-Null; return
+            }
+            if (-not $Ctx.ModSet) { [System.Windows.Forms.MessageBox]::Show($form, 'Host''un mod listesi pakette yok; neyin farklı olduğu bilinemez.', 'Mod klasörü') | Out-Null; return }
+            $lblCheck.Text = 'Mod klasörü taranıyor… (aynı adlı büyük dosyaların hash''i hesaplanıyor, biraz sürebilir)'; $lblCheck.ForeColor = $blue
+            & $startBg 'scan' @{ ModFolder = $Ctx.ModFolder; ModSet = $Ctx.ModSet; Installed = $Ctx.State.Installed.Clone(); Hashes = $Ctx.State.Hashes.Clone() }
+        })
+    $btnBackupOpen.Add_Click({
+            $p = if ($ui.LastBackup -and (Test-Path -LiteralPath $ui.LastBackup)) { $ui.LastBackup } else { Get-BackupRoot $Ctx }
+            if (Test-Path -LiteralPath $p) { Start-Process explorer.exe -ArgumentList "`"$p`"" }
         })
     $btnExport.Add_Click({
             $label = ($txtName.Text.Trim().ToLowerInvariant() -replace '[^a-z0-9_-]', '')
@@ -681,10 +799,9 @@ function Show-AssistantWindow {
                 for ($k = 0; $k -lt $pages.Count; $k++) {
                     & $showPage $k
                     $form.Refresh(); [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 250; [System.Windows.Forms.Application]::DoEvents()
+                    # Sadece pencerenin kendisi çizilir (ekrandan kopyalamak başka pencereleri yakalayabiliyor)
                     $bmp = New-Object System.Drawing.Bitmap($form.Width, $form.Height)
-                    $gr = [System.Drawing.Graphics]::FromImage($bmp)
-                    $gr.CopyFromScreen($form.Location, [System.Drawing.Point]::Empty, $form.Size)
-                    $gr.Dispose()
+                    $form.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $form.Width, $form.Height)))
                     $bmp.Save(($SnapshotPath -f $k), [System.Drawing.Imaging.ImageFormat]::Png)
                     $bmp.Dispose()
                 }

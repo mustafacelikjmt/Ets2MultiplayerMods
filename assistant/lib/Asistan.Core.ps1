@@ -485,6 +485,11 @@ function Get-PrerequisiteReport($Ctx) {
     }
 
     if (-not $Ctx.ModSet) { $r.Add(@{ Name = 'Host''un mod listesi'; State = 'fail'; Detail = 'Paketteki modset dosyası yok; kurulum doğrulanamaz.' }) }
+    elseif ($Ctx.ModFolder) {
+        $other = @(Get-ModFolderConflicts -ModFolder $Ctx.ModFolder -ModSet $Ctx.ModSet -Quick)
+        if ($other.Count) { $r.Add(@{ Name = 'Mod klasöründeki diğer modlar'; State = 'warn'; Detail = "Host'un listesinde olmayan $($other.Count) mod var → 'Farklı modları kaldır ve yedekle'" }) }
+        else { $r.Add(@{ Name = 'Mod klasöründeki diğer modlar'; State = 'ok'; Detail = 'Host''un listesi dışında mod yok' }) }
+    }
     foreach ($h in @(Get-HostFileReport $Ctx)) { $r.Add($h) }
     return $r
 }
@@ -537,6 +542,62 @@ function Get-InstallSummary($Ctx) {
     $missing = @($names | Where-Object { -not (Test-FileInstalled $Ctx $_) })
     @{ Total = $names.Count; Installed = $names.Count - $missing.Count; Missing = $missing }
 }
+
+function Get-ModFolderConflicts {
+    # Mod klasöründe host'un listesinde olmayan ya da aynı adla host'unkinden farklı olan modlar.
+    # -Quick: sadece adlara bakar (hash yok, anında). Tam taramada önce boyut, sonra kurulum kaydı,
+    # sonra hash önbelleği; ancak gerekirse hash hesaplanır. Arka planda çalışabilsin diye $Ctx almaz.
+    param([string]$ModFolder, $ModSet, [hashtable]$Installed = @{}, [hashtable]$HashCache = @{}, [switch]$Quick)
+    if (-not $ModFolder -or -not $ModSet -or -not (Test-Path -LiteralPath $ModFolder)) { return @() }
+    $expected = @{}
+    foreach ($m in @($ModSet.Mods | Where-Object { $_.Source -eq 'local' })) { $expected[$m.File] = $m }
+    foreach ($item in @(Get-ChildItem -LiteralPath $ModFolder -Force)) {
+        $hit = $null
+        if ($item.PSIsContainer) {
+            # Açılmış (klasör hâlinde) mod
+            if (-not $expected.ContainsKey($item.Name)) { $hit = 'Klasör hâlinde mod, host''un listesinde yok' }
+        } elseif ($item.Extension -in '.scs', '.zip') {
+            $exp = $expected[$item.Name]
+            if (-not $exp) { $hit = 'Host''un listesinde yok' }
+            elseif (-not $Quick) {
+                if ($exp.SizeMB -and [Math]::Abs($item.Length / 1MB - [double]$exp.SizeMB) -gt 0.01) { $hit = 'Aynı ad, farklı sürüm' }
+                else {
+                    $rec = $Installed[$item.Name]
+                    $known = $rec -and [long](Get-Prop $rec 'Size' 0) -eq $item.Length -and [long](Get-Prop $rec 'Ticks' 0) -eq $item.LastWriteTimeUtc.Ticks -and (Get-Prop $rec 'Sha256') -eq $exp.Sha256
+                    if (-not $known) {
+                        $key = '{0}|{1}|{2}' -f $item.Name, $item.Length, $item.LastWriteTimeUtc.Ticks
+                        if (-not $HashCache.ContainsKey($key)) { $HashCache[$key] = Get-FileSha256 $item.FullName }
+                        if ($HashCache[$key] -ne $exp.Sha256) { $hit = 'Aynı ad, farklı içerik' }
+                    }
+                }
+            }
+        }
+        if ($hit) {
+            $size = if ($item.PSIsContainer) { [long](Get-ChildItem -LiteralPath $item.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum } else { $item.Length }
+            [pscustomobject]@{ Name = $item.Name; Reason = $hit; Size = $size; IsDir = [bool]$item.PSIsContainer }
+        }
+    }
+}
+
+function Move-ModsToBackup {
+    # Mod klasöründen seçilenleri silmez, tarihli bir yedek klasörüne taşır (geri koyma notuyla)
+    param([string]$ModFolder, [string[]]$Names, [string]$BackupRoot)
+    $dir = Join-Path $BackupRoot (Get-Date -Format 'yyyy-MM-dd_HHmmss')
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    $moved = New-Object System.Collections.Generic.List[string]
+    $failed = New-Object System.Collections.Generic.List[string]
+    foreach ($n in $Names) {
+        try { Move-Item -LiteralPath (Join-Path $ModFolder $n) -Destination (Join-Path $dir $n) -ErrorAction Stop; $moved.Add($n) }
+        catch { $failed.Add("$n ($($_.Exception.Message))") }
+    }
+    $note = @("Bu dosyalar ETS2 Konvoy Asistanı tarafından oyunun mod klasöründen kaldırıldı ($(Get-Date -Format 'dd.MM.yyyy HH:mm')).",
+        'Geri koymak için bu klasördeki dosyaları şuraya taşı:', "  $ModFolder", '', 'Taşınanlar:') + @($moved | ForEach-Object { "  $_" })
+    [System.IO.File]::WriteAllLines((Join-Path $dir 'GERI-KOYMAK-ICIN.txt'), $note, (New-Object System.Text.UTF8Encoding $true))
+    if (-not $moved.Count) { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    @{ Dir = $dir; Moved = $moved.ToArray(); Failed = $failed.ToArray() }
+}
+
+function Get-BackupRoot($Ctx) { Join-Path $Ctx.PackageRoot 'yedek-modlar' }
 
 function Start-DropInstall($Ctx, [string[]]$Paths, [string]$ResultFile) {
     # Sürükle-bırak: arşivler açılır, mod dosyaları doğrudan oyuna kurulur (ayrı pencerede).

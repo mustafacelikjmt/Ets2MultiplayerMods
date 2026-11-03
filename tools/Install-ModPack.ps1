@@ -8,6 +8,7 @@
     karşılaştırılır; uyuşmayan dosya kurulmaz. Sonunda host'ta olup hâlâ eksik olan
     elle kurulacak modlar listelenir. Mevcut dosyaların üzerine yazmak için -Force gerekir.
     -AllowUnlisted: host listesinde olmayan dosyalar da kurulur (uyarıyla); listede olup farklı olanlar yine kurulmaz.
+    -BackupDir: -Force ile üzerine yazılacak farklı sürüm önce bu klasöre taşınır (silinmez).
 
 .EXAMPLE
     .\tools\Install-ModPack.ps1 -Source D:\Indirilenler\konvoy-modlari -ModSet .\modset-mustafa.json
@@ -21,6 +22,7 @@ param(
     [string]$ModSet,
     [switch]$Force,
     [switch]$AllowUnlisted,
+    [string]$BackupDir,
     # Sonucu (kurulan/eksik/farklı dosyalar) JSON olarak yazar; indirme asistanı okur
     [string]$ResultFile
 )
@@ -42,6 +44,7 @@ if (-not $files.Count) { Write-Host "Kaynakta .scs/.zip yok: $Source" -Foregroun
 $installed = New-Object System.Collections.Generic.List[object]
 $different = New-Object System.Collections.Generic.List[string]
 $unlisted = New-Object System.Collections.Generic.List[string]
+$backedUp = New-Object System.Collections.Generic.List[string]
 foreach ($f in $files) {
     $hash = Get-FileSha256 $f.FullName
     $target = Join-Path $modDir $f.Name
@@ -58,6 +61,12 @@ foreach ($f in $files) {
         if (-not $Force) { Write-Host "  [!] $($f.Name): farklı bir sürüm kurulu. Üzerine yazmak için -Force" -ForegroundColor Yellow; continue }
     }
     if ($PSCmdlet.ShouldProcess($target, "Kopyala $($f.Name)")) {
+        if ($BackupDir -and (Test-Path -LiteralPath $target)) {
+            if (-not (Test-Path -LiteralPath $BackupDir)) { New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null }
+            Move-Item -LiteralPath $target -Destination (Join-Path $BackupDir $f.Name) -Force
+            Write-Host "  [~] $($f.Name): eski sürüm yedeğe alındı ($BackupDir)" -ForegroundColor DarkYellow
+            $backedUp.Add($f.Name)
+        }
         Copy-Item -LiteralPath $f.FullName -Destination $target -Force
         Write-Host "  [+] $($f.Name) kuruldu" -ForegroundColor Green
         $installed.Add([pscustomobject]@{ File = $f.Name; Sha256 = $hash })
@@ -86,7 +95,8 @@ if ($ResultFile) {
     [pscustomobject]@{
         # ToArray: PS 5.1'de boş List'i @() ile hashtable'a koymak "Bağımsız değişken türleri eşleşmiyor" hatası veriyor
         Ok = (-not $missing.Count -and -not $different.Count); Missing = $missing; Different = $different.ToArray(); Unlisted = $unlisted.ToArray()
-        Installed = $installed.ToArray(); Time = (Get-Date).ToString('s')
+        Installed = $installed.ToArray(); BackedUp = $backedUp.ToArray(); BackupDir = $(if ($backedUp.Count) { $BackupDir } else { $null })
+        Time = (Get-Date).ToString('s')
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultFile -Encoding UTF8
 }
 Write-Host ''
