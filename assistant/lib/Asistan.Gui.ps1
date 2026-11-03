@@ -208,6 +208,8 @@ function Show-AssistantWindow {
         BackColor = $T.Bg; ForeColor = $T.Text
     }
     $form.Add_HandleCreated({ Set-DarkNative $form })
+    $iconPath = Join-Path $Ctx.AssistantDir 'assets\asistan.ico'
+    if (Test-Path -LiteralPath $iconPath) { try { $form.Icon = New-Object System.Drawing.Icon($iconPath) } catch { } }
 
     # --- Üst bant ---------------------------------------------------------------------------
     $hostName = Get-Prop $Ctx.Package 'host' 'host'

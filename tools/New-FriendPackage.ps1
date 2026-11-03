@@ -42,7 +42,7 @@ $OutDir = (Resolve-Path -LiteralPath $OutDir).ProviderPath
 # Asistan
 $asistanOut = Join-Path $OutDir 'asistan'
 New-Item -ItemType Directory -Path $asistanOut | Out-Null
-foreach ($item in 'Start-Asistan.ps1', 'version.json', 'lib', 'catalog') {
+foreach ($item in 'Start-Asistan.ps1', 'version.json', 'lib', 'catalog', 'assets') {
     Copy-Item -LiteralPath (Join-Path $assistant $item) -Destination $asistanOut -Recurse
 }
 Copy-Item -LiteralPath (Join-Path $assistant 'Asistan.cmd') -Destination $OutDir
@@ -79,11 +79,12 @@ if ($Exe) {
     $version = (Get-Content -LiteralPath (Join-Path $assistant 'version.json') -Raw | ConvertFrom-Json).assistantVersion
     $info = Join-Path ([System.IO.Path]::GetTempPath()) "ets2konvoy-asminfo-$PID.cs"
     $asm = "using System.Reflection;`r`n[assembly: AssemblyTitle(`"ETS2 Konvoy Asistanı`")]`r`n[assembly: AssemblyProduct(`"ETS2 Konvoy Asistanı`")]`r`n" +
-        "[assembly: AssemblyDescription(`"$($Pack) · host: $HostName`")]`r`n[assembly: AssemblyVersion(`"$version.0`")]`r`n[assembly: AssemblyFileVersion(`"$version.0`")]`r`n"
+        "[assembly: AssemblyDescription(`"$($Pack) · host: $HostName`")]`r`n[assembly: AssemblyCompany(`"$HostName`")]`r`n" +
+        "[assembly: AssemblyCopyright(`"© $((Get-Date).Year) $HostName`")]`r`n[assembly: AssemblyVersion(`"$version.0`")]`r`n[assembly: AssemblyFileVersion(`"$version.0`")]`r`n"
     [System.IO.File]::WriteAllText($info, $asm, (New-Object System.Text.UTF8Encoding $true))
     try {
         $exeFull = if ([System.IO.Path]::IsPathRooted($Exe)) { $Exe } else { [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Exe)) }
-        & $csc /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/out:$exeFull" `
+        & $csc /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/out:$exeFull" "/win32icon:$(Join-Path $assistant 'assets\asistan.ico')" `
             "/reference:$fw\System.IO.Compression.dll" "/reference:$fw\System.Windows.Forms.dll" "/resource:$zip,paket.zip" `
             (Join-Path $assistant 'launcher\Launcher.cs') $info
         if ($LASTEXITCODE -ne 0) { throw "Derleme başarısız (csc çıkış kodu $LASTEXITCODE)." }
