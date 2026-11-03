@@ -1,0 +1,49 @@
+{
+  "id": "promods-eu",
+  "name": "ProMods Europe",
+  "version": "2.84",
+  "site": "promods.net",
+  "page": "https://promods.net/setup.php?game=ets",
+  "loginRequired": true,
+  "notes": [
+    "Site önce 'DEF dosyası oluştur' adımını isteyebilir. Oluştur, ama indirilen def dosyasıyla bir şey yapma: konvoyda host'un def dosyası kullanılır, asistan onu zaten pakette getiriyor."
+  ],
+  "variants": [
+    {
+      "id": "free",
+      "label": "Bedava indirme",
+      "cooldownGroup": "promods",
+      "cooldownSeconds": 300,
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "STANDART İNDİR (bedava) bölümünde {file} satırındaki İNDİR düğmesine bas."
+      ],
+      "files": [
+        { "name": "promods-v284.7z.001", "size": 262144000, "sha256": "14189900914E5ED633738EFEAE19901A6951C35AC5672247A27221FE079FD57B" },
+        { "name": "promods-v284.7z.002", "size": 262144000, "sha256": "A791703C404A8D8BD616E7977D26A1313B8488F954A1913EE93E9BE79CB26270" },
+        { "name": "promods-v284.7z.003", "size": 262144000, "sha256": "A1AB7453457442BAD196C870F86A7F286AAF63E686A998EFDE5E46BC11002B64" },
+        { "name": "promods-v284.7z.004", "size": 262144000, "sha256": "003DEEB3285CE4C0248FA5182ED5BF9A7322EF4FA7F8D9353CAD466A782B2318" },
+        { "name": "promods-v284.7z.005", "size": 262144000, "sha256": "51824A668399D6958FCAEACD11E80A3EE68EC85BC4FA42503E613AE19DBD812A" },
+        { "name": "promods-v284.7z.006", "size": 262144000, "sha256": "F294A77E8408ADA8538B13D3B73C42FA3DC791A2BC396D1E08075BCE8BDE2902" },
+        { "name": "promods-v284.7z.007", "size": 262144000, "sha256": "848D70DE169CB13347FBD4263A1255774AB12B827726951EB5C0A277F91BAF94" },
+        { "name": "promods-v284.7z.008", "size": 262144000, "sha256": "EE2299237470BE460F740B3F616CC27CF707B44E323BDAC1FC4DD407BC85018B" },
+        { "name": "promods-v284.7z.009", "size": 262144000, "sha256": "C33019103778B36C768DBC80F32D503F4A0DF8EDE1F15EDE3CA45261479070A1" },
+        { "name": "promods-v284.7z.010", "size": 262144000, "sha256": "A928CD012095A90A5BE614BF58F0157289A190FAFD4BB218B2554106817CA304" },
+        { "name": "promods-v284.7z.011", "size": 262144000, "sha256": "0FA6149E06F50C6F3477B2E1C1A4F1A11EB58B33E40F068A157F50EA7628FE38" },
+        { "name": "promods-v284.7z.012", "size": 262144000, "sha256": "ABEFE86B833E9208881D566BD78C5E48A1F573CF6AED3E7327EADA62ED1D9581" },
+        { "name": "promods-v284.7z.013", "size": 149459608, "sha256": "56ADF92A9267DC5EFA2A64180B960C6C388A96F7580597F3CFFCB05BFB781095" }
+      ]
+    },
+    {
+      "id": "premium",
+      "label": "Premium indirme",
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "PREMIUM İNDİR bölümünden tek parça dosyayı indir. (Dosya adı farklıysa 'Dosyayı elle seç' ile göster.)"
+      ],
+      "files": [
+        { "pattern": "promods-v284*.7z", "display": "promods-v284 (tek dosya)" }
+      ]
+    }
+  ]
+}

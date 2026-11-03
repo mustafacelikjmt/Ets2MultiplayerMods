@@ -203,6 +203,24 @@ function Get-Ets2LogInfo {
     }
 }
 
+function Get-ActiveModOrder {
+    # game.log.txt'deki son "[mods] Active N mods" bloğu, Mod Yöneticisi sırasıyla (üstten alta).
+    # Log en düşük öncelikten başladığı için ters çevrilir.
+    param([string[]]$ModLines)
+    $start = -1
+    for ($i = 0; $i -lt $ModLines.Count; $i++) { if ($ModLines[$i] -match '^\[mods\] Active \d+ mods') { $start = $i } }
+    if ($start -lt 0) { return @() }
+    $order = New-Object System.Collections.Generic.List[object]
+    for ($i = $start + 1; $i -lt $ModLines.Count; $i++) {
+        $m = [regex]::Match($ModLines[$i], '^\[mods\] Active (?:local|workshop) mod (.+?) \(name: (.*?)(?:, version:|\)$)')
+        if (-not $m.Success) { break }
+        $order.Add([pscustomobject]@{ Package = $m.Groups[1].Value; Name = $m.Groups[2].Value })
+    }
+    $arr = $order.ToArray()
+    [array]::Reverse($arr)
+    return $arr
+}
+
 # Bilinen harita DLC paket adları (konvoyda harita eşleşmesi için önemli)
 $script:MapDlcNames = @{
     'dlc_east'     = 'Going East!'

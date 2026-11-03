@@ -15,6 +15,7 @@ param(
     [Parameter(Mandatory)][string]$Reference,
     [Parameter(Mandatory)][string]$Difference
 )
+. "$PSScriptRoot\Ets2Common.ps1"
 
 $ref = Get-Content -LiteralPath $Reference -Raw | ConvertFrom-Json
 $dif = Get-Content -LiteralPath $Difference -Raw | ConvertFrom-Json
@@ -68,22 +69,7 @@ foreach ($m in @($ref.Mods)) {
     Write-Ok "$tag$($m.File)"
 }
 
-function Get-ActiveOrder($set) {
-    # game.log.txt'deki son "[mods] Active N mods" bloğu; log en düşük öncelikten başlar
-    $lines = @($set.ActiveModLog)
-    $start = -1
-    for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^\[mods\] Active \d+ mods') { $start = $i } }
-    if ($start -lt 0) { return @() }
-    $order = New-Object System.Collections.Generic.List[string]
-    for ($i = $start + 1; $i -lt $lines.Count; $i++) {
-        $m = [regex]::Match($lines[$i], '^\[mods\] Active (?:local|workshop) mod (.+?) \(name:')
-        if (-not $m.Success) { break }
-        $order.Add($m.Groups[1].Value)
-    }
-    $arr = $order.ToArray()
-    [array]::Reverse($arr)
-    return $arr
-}
+function Get-ActiveOrder($set) { @(Get-ActiveModOrder @($set.ActiveModLog) | ForEach-Object { $_.Package }) }
 
 Write-Host 'Aktif mod sırası (Mod Yöneticisi, üstten alta)'
 $refOrder = @(Get-ActiveOrder $ref)

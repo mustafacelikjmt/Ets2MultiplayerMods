@@ -1,0 +1,36 @@
+{
+  "id": "promods-ma",
+  "name": "ProMods Maghreb",
+  "version": "1.0.4",
+  "site": "promods.net",
+  "page": "https://promods.net/setup.php?game=ma",
+  "loginRequired": true,
+  "variants": [
+    {
+      "id": "free",
+      "label": "Bedava indirme",
+      "cooldownGroup": "promods",
+      "cooldownSeconds": 300,
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "STANDART İNDİR (bedava) bölümünde {file} satırındaki İNDİR düğmesine bas."
+      ],
+      "files": [
+        { "name": "promods-ma-v104.7z.001", "size": 262144000, "sha256": "C4287A223D50E56AC08ACCE3E59B8A84B68E01882D128B16CDF50FE5983AFC8D" },
+        { "name": "promods-ma-v104.7z.002", "size": 262144000, "sha256": "1D911DE891970D5EBDB648AD960DC85162F0319793C7E6D80F8A340A32A8F497" },
+        { "name": "promods-ma-v104.7z.003", "size": 43517701, "sha256": "D969CDCAADFBF567C81D377D92DF963D09B2725A636AE231DB7D88FB69EDECA3" }
+      ]
+    },
+    {
+      "id": "premium",
+      "label": "Premium indirme",
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "PREMIUM İNDİR bölümünden tek parça dosyayı indir. (Dosya adı farklıysa 'Dosyayı elle seç' ile göster.)"
+      ],
+      "files": [
+        { "pattern": "promods-ma-v104*.7z", "display": "promods-ma-v104 (tek dosya)" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "konvoy-2026-11",
+  "name": "Konvoy haritaları – Kasım 2026",
+  "description": "ProMods Europe + Middle-East + Maghreb + The Great Steppe, BXP Türkiye, Horn of Africa",
+  "game": "ets2",
+  "gameVersion": "1.61",
+  "diskGb": 60,
+  "requiredDlcs": [
+    { "appId": "227310", "name": "Going East!" },
+    { "appId": "304212", "name": "Scandinavia" },
+    { "appId": "388470", "name": "Vive la France!" },
+    { "appId": "558244", "name": "Italia" },
+    { "appId": "925580", "name": "Beyond the Baltic Sea" },
+    { "appId": "1056760", "name": "Road to the Black Sea" },
+    { "appId": "1209460", "name": "Iberia" },
+    { "appId": "2004210", "name": "West Balkans" },
+    { "appId": "2604420", "name": "Greece" },
+    { "appId": "2780810", "name": "Nordic Horizons" }
+  ],
+  "mods": [ "promods-eu", "promods-me", "promods-ma", "promods-tgs", "bxp-turkey", "hoa" ],
+  "hostFiles": [
+    { "name": "promods-eu-def-v284.scs", "label": "ProMods Europe tanım dosyası (host'a özel, paylaşma)" }
+  ]
+}

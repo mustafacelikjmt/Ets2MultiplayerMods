@@ -1,0 +1,34 @@
+{
+  "id": "promods-me",
+  "name": "ProMods Middle-East",
+  "version": "2.84",
+  "site": "promods.net",
+  "page": "https://promods.net/setup.php?game=me",
+  "loginRequired": true,
+  "variants": [
+    {
+      "id": "free",
+      "label": "Bedava indirme",
+      "cooldownGroup": "promods",
+      "cooldownSeconds": 300,
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "STANDART İNDİR (bedava) bölümünde {file} satırındaki İNDİR düğmesine bas."
+      ],
+      "files": [
+        { "name": "promods-me-v284.7z", "size": 199222695, "sha256": "81E9C27A28D78E6860CF3C2FA02AC67E2DF29D7FB3ADB50C340AF3975AC11BDB" }
+      ]
+    },
+    {
+      "id": "premium",
+      "label": "Premium indirme",
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "PREMIUM İNDİR bölümünden dosyayı indir. (Dosya adı farklıysa 'Dosyayı elle seç' ile göster.)"
+      ],
+      "files": [
+        { "pattern": "promods-me-v284*.7z", "display": "promods-me-v284 (tek dosya)" }
+      ]
+    }
+  ]
+}

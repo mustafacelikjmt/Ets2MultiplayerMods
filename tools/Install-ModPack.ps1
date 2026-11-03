@@ -18,7 +18,9 @@
 param(
     [Parameter(Mandatory)][string]$Source,
     [string]$ModSet,
-    [switch]$Force
+    [switch]$Force,
+    # Sonucu (eksik/farklı dosyalar) JSON olarak yazar; indirme asistanı okur
+    [string]$ResultFile
 )
 . "$PSScriptRoot\Ets2Common.ps1"
 
@@ -63,6 +65,10 @@ if ($expected.Count) {
         Write-Host 'Hâlâ eksik ya da farklı:' -ForegroundColor Red
         $stillMissing | Sort-Object | ForEach-Object { Write-Host "  $_" }
     } else { Write-Host 'Host''un elle kurulan modlarının hepsi birebir aynı şekilde kurulu.' -ForegroundColor Green }
+    if ($ResultFile) {
+        [pscustomobject]@{ Ok = (-not $stillMissing.Count); Missing = @($stillMissing | Sort-Object); Time = (Get-Date).ToString('s') } |
+            ConvertTo-Json | Set-Content -LiteralPath $ResultFile -Encoding UTF8
+    }
     $ws = @($set.Mods | Where-Object { $_.Source -eq 'workshop' } | Select-Object -ExpandProperty WorkshopId -Unique)
     if ($ws.Count) {
         Write-Host 'Workshop''tan abone olunacaklar:' -ForegroundColor Cyan

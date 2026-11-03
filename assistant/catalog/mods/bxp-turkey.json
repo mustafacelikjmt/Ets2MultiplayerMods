@@ -1,0 +1,26 @@
+{
+  "id": "bxp-turkey",
+  "name": "BXP Türkiye",
+  "version": "161",
+  "site": "mods.to (BXP'nin kendi yüklemeleri)",
+  "page": "https://discord.gg/vfBMnfvgxe",
+  "loginRequired": false,
+  "linkSource": "BXP Discord sunucusu, #bxp-mods kanalı (03.11.2026)",
+  "variants": [
+    {
+      "id": "free",
+      "label": "mods.to",
+      "instructions": [
+        "Açılan sayfada sırayla Start now → Begin Download → Generate link düğmelerine bas, sonra çıkan indirme linkine tıkla.",
+        "Reklam sekmeleri açılırsa kapat. Sayfanın önerdiği başka hiçbir şeyi indirme veya çalıştırma."
+      ],
+      "files": [
+        { "name": "BXPpmmeTurkey161.scs", "url": "https://mods.to/qmmM6ab3c79f619a9", "size": 6124695, "sha256": "33CEB97FE93B0142555B7B40E31C93D5E2487310B2BA8E1CE7A1640C30FB6A7E" },
+        { "name": "BXPpmTurkey161.scs", "url": "https://mods.to/7MVQ6ab3c79601da8", "size": 64408554, "sha256": "77CC073DAB50DB19AAD2E83C53C08380C9CDAEF93A8DB07DD15AFAEA04D7696D" },
+        { "name": "2K24 BXP TURKEY 01.scs", "url": "https://mods.to/O0Nm6a281d8ba148c", "size": 180790058, "sha256": "ACBF5F26D1AAE0BA203788B58BF3AA07FAE40A1E36294061B581BEC1ED3361CD" },
+        { "name": "2K24 BXP TURKEY 02.scs", "url": "https://mods.to/7aSo6a281d9b04ad8", "size": 154014162, "sha256": "8A5EAB3D40F43127D04FF5B24A27C5A0DA3C853B457953A07069E808ED14DFF9" },
+        { "name": "2K24 BXP TURKEY 03.scs", "url": "https://mods.to/4E6X6a281dc179959", "size": 1801311293, "sha256": "4AC9D3D8626A5E69BC01DF3C9850FE9CADA14F115A9A241CA4163EC545B8C103" }
+      ]
+    }
+  ]
+}

@@ -17,7 +17,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Source,
-    [Parameter(Mandatory)][string]$Destination
+    [Parameter(Mandatory)][string]$Destination,
+    # İndirme asistanı kurulumu kendisi sürdürür; "sonraki adım" ipucu gösterilmez
+    [switch]$NoHint
 )
 . "$PSScriptRoot\Ets2Common.ps1"
 
@@ -94,4 +96,4 @@ foreach ($f in $files) {
 $result = @(Get-ChildItem -LiteralPath $Destination -File | Where-Object { $_.Extension -in '.scs', '.zip' })
 Write-Host ''
 Write-Host "$($result.Count) mod paketi hazır: $Destination" -ForegroundColor Cyan
-Write-Host "Sonraki adım: .\tools\Install-ModPack.ps1 -Source `"$Destination`" -ModSet <host'un modset JSON'u>" -ForegroundColor Cyan
+if (-not $NoHint) { Write-Host "Sonraki adım: .\tools\Install-ModPack.ps1 -Source `"$Destination`" -ModSet <host'un modset JSON'u>" -ForegroundColor Cyan }

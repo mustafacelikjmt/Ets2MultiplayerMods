@@ -1,0 +1,37 @@
+{
+  "id": "promods-tgs",
+  "name": "ProMods The Great Steppe",
+  "version": "1.7.0",
+  "site": "promods.net",
+  "page": "https://promods.net/setup.php?game=tgs",
+  "loginRequired": true,
+  "variants": [
+    {
+      "id": "free",
+      "label": "Bedava indirme",
+      "cooldownGroup": "promods",
+      "cooldownSeconds": 300,
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "STANDART İNDİR (bedava) bölümünde {file} satırındaki İNDİR düğmesine bas."
+      ],
+      "files": [
+        { "name": "promods-tgs-v170.7z.001", "size": 262144000, "sha256": "DE4C67E9B099956164FE6E6F53971F69336CF0423F9E1AD06DBD6DA4B488E054" },
+        { "name": "promods-tgs-v170.7z.002", "size": 262144000, "sha256": "E2C3A4746024D4B794EFAE99E8B9913CE24B7F0433A73FFD5653C1C51BA7A733" },
+        { "name": "promods-tgs-v170.7z.003", "size": 262144000, "sha256": "D4411864FC363966AEBE6042DA555EF6378F60E0841F66A0DBDD9EC2BEFB407B" },
+        { "name": "promods-tgs-v170.7z.004", "size": 56763870, "sha256": "7427C3DD5B1692849BA5854BE887A648F92F787EB262DBFDDBB657294FCA34A5" }
+      ]
+    },
+    {
+      "id": "premium",
+      "label": "Premium indirme",
+      "instructions": [
+        "promods.net'te hesabına giriş yap (sağ üst köşe).",
+        "PREMIUM İNDİR bölümünden tek parça dosyayı indir. (Dosya adı farklıysa 'Dosyayı elle seç' ile göster.)"
+      ],
+      "files": [
+        { "pattern": "promods-tgs-v170*.7z", "display": "promods-tgs-v170 (tek dosya)" }
+      ]
+    }
+  ]
+}
