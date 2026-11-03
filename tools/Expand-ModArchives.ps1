@@ -1,11 +1,12 @@
 ﻿<#
 .SYNOPSIS
-    İndirilen mod arşivlerini (çok parçalı .7z, .7z, .zip) açar ve tüm mod paketlerini tek klasörde toplar.
+    İndirilen mod arşivlerini (çok parçalı .7z, .7z, .rar, .zip) açar ve tüm mod paketlerini tek klasörde toplar.
 
 .DESCRIPTION
-    7-Zip gerekmez: Windows'un kendi tar.exe'si (libarchive) 7z ve zip okur.
+    7-Zip gerekmez: Windows'un kendi tar.exe'si (libarchive) 7z, rar ve zip okur.
+    Kaynak bir klasör (-Source) ya da tek tek dosyalar (-Path) olabilir.
     - name.7z.001, .002 ... parçaları sırayla birleştirilip açılır.
-    - Tek parça .7z açılır.
+    - Tek parça .7z / .rar açılır.
     - Kökünde manifest.sii olan .zip bir moddur (ör. ProMods DLC Support) ve olduğu gibi kopyalanır;
       diğer .zip'ler arşiv sayılıp açılır.
     - Kaynaktaki tek başına duran .scs dosyaları kopyalanır.
@@ -16,7 +17,8 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Source,
+    [string]$Source,
+    [string[]]$Path = @(),
     [Parameter(Mandatory)][string]$Destination,
     # İndirme asistanı kurulumu kendisi sürdürür; "sonraki adım" ipucu gösterilmez
     [switch]$NoHint
@@ -52,7 +54,11 @@ function Expand-Archive7 {
     } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-$files = @(Get-ChildItem -LiteralPath $Source -File)
+if (-not $Source -and -not $Path.Count) { throw '-Source ya da -Path verilmeli.' }
+$files = @()
+if ($Source) { $files += @(Get-ChildItem -LiteralPath $Source -File) }
+foreach ($p in $Path) { $files += Get-Item -LiteralPath $p }
+$files = @($files | Sort-Object FullName -Unique)
 
 # Çok parçalı 7z: ad.7z.001, ad.7z.002 ...
 $parts = $files | Where-Object { $_.Name -match '^(.+\.7z)\.(\d{3})$' } | Group-Object { $_.Name -replace '\.\d{3}$', '' }
@@ -79,7 +85,7 @@ foreach ($g in $parts) {
 foreach ($f in $files) {
     if ($f.Name -match '\.7z\.\d{3}$') { continue }
     switch ($f.Extension.ToLowerInvariant()) {
-        '.7z' { Expand-Archive7 $f.FullName $f.Name }
+        { $_ -in '.7z', '.rar' } { Expand-Archive7 $f.FullName $f.Name }
         '.zip' {
             if (Test-ModZip $f.FullName) {
                 Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $Destination $f.Name) -Force

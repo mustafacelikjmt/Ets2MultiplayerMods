@@ -5,6 +5,7 @@
   "site": "mods.to (BXP'nin kendi yüklemeleri)",
   "page": "https://discord.gg/vfBMnfvgxe",
   "loginRequired": false,
+  "provides": [ "BXPpmmeTurkey161.scs", "BXPpmTurkey161.scs", "2K24 BXP TURKEY 01.scs", "2K24 BXP TURKEY 02.scs", "2K24 BXP TURKEY 03.scs" ],
   "linkSource": "BXP Discord sunucusu, #bxp-mods kanalı (03.11.2026)",
   "variants": [
     {

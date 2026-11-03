@@ -5,6 +5,7 @@
   "site": "promods.net",
   "page": "https://promods.net/setup.php?game=ma",
   "loginRequired": true,
+  "provides": [ "cnx-pm-eu-v284-v104.scs", "promods-ma-assets-v104.scs", "promods-ma-defmap-v104.scs", "promods-ma-models-v104.scs" ],
   "variants": [
     {
       "id": "free",

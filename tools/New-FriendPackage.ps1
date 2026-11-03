@@ -8,9 +8,12 @@
     Başkasına ait mod dosyası pakete KONMAZ; onları oyuncu asistanla kendisi indirir.
     Host dosyaları (def) kişiseldir: paketi sadece konvoy arkadaşına ver.
 
+    -Exe verilirse ayrıca tek dosyalık başlatıcı derlenir (paket zip'i içine gömülü, assistant\launcher\Launcher.cs).
+    Windows'un kendi csc.exe'si kullanılır; bir şey indirilmez.
+
 .EXAMPLE
     .\tools\New-FriendPackage.ps1 -ModSet .\modset-mustafa.json -HostFile .\original\promods\promods-eu-def-v284.scs `
-        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Force
+        -HostName <adın> -Guide .\docs\KURULUM.txt -OutDir .\dist\arkadas-paketi -Exe .\dist\ETS2-Konvoy-Asistani.exe -Force
 #>
 [CmdletBinding()]
 param(
@@ -21,6 +24,7 @@ param(
     [string]$PlayerLabel = 'arkadas',
     [string]$Guide,
     [Parameter(Mandatory)][string]$OutDir,
+    [string]$Exe,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -66,4 +70,24 @@ if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path (Join-Path $OutDir '*') -DestinationPath $zip
 Write-Host "Paket hazır: $OutDir" -ForegroundColor Green
 Write-Host "Zip       : $zip ($([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 2)) MB)" -ForegroundColor Green
+
+if ($Exe) {
+    $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    if (-not (Test-Path -LiteralPath $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+    if (-not (Test-Path -LiteralPath $csc)) { throw "csc.exe bulunamadı (.NET Framework 4.5+ gerekir)." }
+    $fw = Split-Path $csc -Parent
+    $version = (Get-Content -LiteralPath (Join-Path $assistant 'version.json') -Raw | ConvertFrom-Json).assistantVersion
+    $info = Join-Path ([System.IO.Path]::GetTempPath()) "ets2konvoy-asminfo-$PID.cs"
+    $asm = "using System.Reflection;`r`n[assembly: AssemblyTitle(`"ETS2 Konvoy Asistanı`")]`r`n[assembly: AssemblyProduct(`"ETS2 Konvoy Asistanı`")]`r`n" +
+        "[assembly: AssemblyDescription(`"$($Pack) · host: $HostName`")]`r`n[assembly: AssemblyVersion(`"$version.0`")]`r`n[assembly: AssemblyFileVersion(`"$version.0`")]`r`n"
+    [System.IO.File]::WriteAllText($info, $asm, (New-Object System.Text.UTF8Encoding $true))
+    try {
+        $exeFull = if ([System.IO.Path]::IsPathRooted($Exe)) { $Exe } else { [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Exe)) }
+        & $csc /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/out:$exeFull" `
+            "/reference:$fw\System.IO.Compression.dll" "/reference:$fw\System.Windows.Forms.dll" "/resource:$zip,paket.zip" `
+            (Join-Path $assistant 'launcher\Launcher.cs') $info
+        if ($LASTEXITCODE -ne 0) { throw "Derleme başarısız (csc çıkış kodu $LASTEXITCODE)." }
+    } finally { Remove-Item -LiteralPath $info -Force -ErrorAction SilentlyContinue }
+    Write-Host "Exe       : $exeFull ($([math]::Round((Get-Item -LiteralPath $exeFull).Length / 1MB, 2)) MB, sürüm $version)" -ForegroundColor Green
+}
 Write-Host 'Zip''te host''a özel dosya var (def). Sadece konvoy arkadaşına ver, hiçbir yere yükleme.' -ForegroundColor Yellow

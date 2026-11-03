@@ -15,7 +15,7 @@ function Show-AssistantWindow {
     $blue = [System.Drawing.Color]::FromArgb(0, 90, 180)
     $red = [System.Drawing.Color]::FromArgb(190, 20, 20)
     $orange = [System.Drawing.Color]::FromArgb(200, 100, 0)
-    $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; Prereq = @() }
+    $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; AddProc = $null; PendingDrop = $null; Prereq = @() }
 
     $form = New-Control Form @{
         Text = "ETS2 Konvoy İndirme Asistanı $($Ctx.Version)"; Size = New-Object System.Drawing.Size(1000, 720)
@@ -23,7 +23,12 @@ function Show-AssistantWindow {
     }
 
     $tabs = New-Control TabControl @{ Dock = 'Fill' }
-    $header = New-Control Panel @{ Dock = 'Top'; Height = 58; BackColor = [System.Drawing.Color]::FromArgb(32, 48, 72) }
+    $header = New-Control Panel @{ Dock = 'Top'; Height = 58; Width = 1000; BackColor = [System.Drawing.Color]::FromArgb(32, 48, 72) }
+    $header.Controls.Add((New-Control Label @{
+                Text = "Dosyalar elindeyse (arşiv ya da .scs) bu pencereye sürükleyip bırak:`r`nasistan açar ve oyuna kurar."
+                ForeColor = [System.Drawing.Color]::FromArgb(255, 220, 140); TextAlign = 'MiddleRight'
+                Location = New-Object System.Drawing.Point(480, 6); Size = New-Object System.Drawing.Size(500, 46); Anchor = 'Top,Right'
+            }))
     $header.Controls.Add((New-Control Label @{ Text = 'ETS2 Konvoy İndirme Asistanı'; Font = $fontBold; ForeColor = 'White'; AutoSize = $true; Location = New-Object System.Drawing.Point(12, 6) }))
     $hostName = Get-Prop $Ctx.Package 'host' 'host'
     $header.Controls.Add((New-Control Label @{
@@ -73,10 +78,11 @@ function Show-AssistantWindow {
     $tabInstall = New-Control TabPage @{ Text = '3. Kur'; Padding = New-Object System.Windows.Forms.Padding(14); Size = New-Object System.Drawing.Size(970, 600) }
     $lblInstallInfo = New-Control Label @{
         Location = New-Object System.Drawing.Point(14, 14); Size = New-Object System.Drawing.Size(920, 80); Anchor = 'Top,Left,Right'
-        Text = "Bütün dosyalar inince bu düğme açılır. Asistan arşivleri açar, modları oyunun mod klasörüne kopyalar ve`r`nher birini host'un dosyasıyla karşılaştırır. Ayrı bir siyah pencere açılır; iş bitene kadar kapatma.`r`nAynı adlı eski mod dosyaların varsa host'unkiyle değiştirilir."
+        Text = "Bütün dosyalar inince bu düğme açılır. Asistan arşivleri açar, modları oyunun mod klasörüne kopyalar ve`r`nher birini host'un dosyasıyla karşılaştırır. Ayrı bir siyah pencere açılır; iş bitene kadar kapatma.`r`nAynı adlı eski mod dosyaların varsa host'unkiyle değiştirilir. Pencereye sürükleyip bıraktığın dosyalar ise hemen kurulur."
     }
     $btnInstall = New-Control Button @{ Text = 'Arşivleri aç ve kur'; Font = $fontBold; Size = New-Object System.Drawing.Size(240, 44); Location = New-Object System.Drawing.Point(14, 100); Enabled = $false }
     $lblInstall = New-Control Label @{ Location = New-Object System.Drawing.Point(270, 104); Size = New-Object System.Drawing.Size(660, 90); Anchor = 'Top,Left,Right' }
+    $lblInstSum = New-Control Label @{ Font = $fontBold; Location = New-Object System.Drawing.Point(14, 154); Size = New-Object System.Drawing.Size(250, 44) }
     $lblExportInfo = New-Control Label @{
         Location = New-Object System.Drawing.Point(14, 210); Size = New-Object System.Drawing.Size(920, 66); Anchor = 'Top,Left,Right'
         Text = "Kurulumdan sonra: oyunu aç, Mod Yöneticisi'nde modları '4. Mod sırası' sekmesindeki sırayla etkinleştir, profili yükle,`r`nbiraz sür ve oyundan çık. Sonra aşağıdaki düğmeyle kontrol dosyanı oluştur ve host'a gönder."
@@ -85,7 +91,7 @@ function Show-AssistantWindow {
     $txtName = New-Control TextBox @{ Text = (Get-Prop $Ctx.Package 'playerLabel' 'arkadas'); Size = New-Object System.Drawing.Size(150, 26); Location = New-Object System.Drawing.Point(64, 287) }
     $btnExport = New-Control Button @{ Text = 'Kontrol dosyasını oluştur'; Size = New-Object System.Drawing.Size(220, 34); Location = New-Object System.Drawing.Point(230, 282) }
     $lblExport = New-Control Label @{ Location = New-Object System.Drawing.Point(14, 326); Size = New-Object System.Drawing.Size(920, 60); Anchor = 'Top,Left,Right' }
-    $tabInstall.Controls.AddRange(@($lblInstallInfo, $btnInstall, $lblInstall, $lblExportInfo, $lblName, $txtName, $btnExport, $lblExport))
+    $tabInstall.Controls.AddRange(@($lblInstallInfo, $btnInstall, $lblInstall, $lblInstSum, $lblExportInfo, $lblName, $txtName, $btnExport, $lblExport))
 
     # --- 4. Mod sırası ---------------------------------------------------------------------
     $tabOrder = New-Control TabPage @{ Text = '4. Mod sırası'; Padding = New-Object System.Windows.Forms.Padding(10) }
@@ -148,11 +154,12 @@ function Show-AssistantWindow {
             $complete = Test-ModComplete $mod
             $files = (Get-ActiveVariant $Ctx $mod).Files
             $doneCount = @($files | Where-Object { $_.Status -eq 'done' }).Count
-            $ui.Groups[$mod.Id].Header = if ($complete) { "$($mod.Name) $($mod.Version)  –  tamam ✓" } else { "$($mod.Name) $($mod.Version)  –  $doneCount / $($files.Count)" }
+            $ui.Groups[$mod.Id].Header = if ($mod.Installed) { "$($mod.Name) $($mod.Version)  –  oyuna kurulu ✓" } elseif ($complete) { "$($mod.Name) $($mod.Version)  –  tamam ✓" } else { "$($mod.Name) $($mod.Version)  –  $doneCount / $($files.Count)" }
             foreach ($spec in $files) {
                 $it = $ui.Items[$spec.Key]
                 if (-not $it) { continue }
-                $text, $color = if ($complete -or $spec.Status -eq 'done') { "Tamam ✓  $($spec.Detail)", $green }
+                $text, $color = if ($mod.Installed) { 'Oyuna kurulu ✓', $green }
+                elseif ($complete -or $spec.Status -eq 'done') { "Tamam ✓  $($spec.Detail)", $green }
                 elseif ($spec.Status -eq 'downloading') { "İniyor… %$($spec.Percent)", $blue }
                 elseif ($spec.Status -eq 'error') { $spec.Detail, $red }
                 elseif ($ui.Current -and $ui.Current.Spec.Key -eq $spec.Key) { '◀ Sıradaki', $orange }
@@ -187,6 +194,7 @@ function Show-AssistantWindow {
                 foreach ($l in @($v.Instructions) + @($m.Notes)) { $lines += '• ' + ($l -replace '\{file\}', $s.Display) }
                 if ($s.Status -eq 'error') { $lines = @("• Önceki indirme hatalıydı: $($s.Detail)") + $lines }
                 $lines += '• İnen dosyayı asistan kendisi bulur ve doğrular; sen bir şey taşıma.'
+                $lines += '• Dosyalar zaten elindeyse indirme: pencereye sürükleyip bırak.'
                 $lblInstr.Text = $lines -join "`r`n"
                 $btnOpen.Enabled = $true; $btnPick.Enabled = $true; $btnSkip.Enabled = $true
                 $form.Text = "ETS2 Konvoy İndirme Asistanı $($Ctx.Version)"
@@ -205,6 +213,10 @@ function Show-AssistantWindow {
             'done' {
                 $lblAction.Text = 'Bütün dosyalar indi ✓'
                 $lblInstr.Text = '• "3. Kur" sekmesine geç ve "Arşivleri aç ve kur" düğmesine bas.'
+                if (-not @($Ctx.Mods | Where-Object { -not $_.Installed }).Count) {
+                    $lblAction.Text = 'Bütün modlar oyuna kurulu ✓'
+                    $lblInstr.Text = '• "4. Mod sırası" sekmesindeki sırayla modları oyunda etkinleştir.'
+                }
                 $btnOpen.Enabled = $false; $btnPick.Enabled = $false; $btnSkip.Enabled = $false
                 $form.Text = "ETS2 Konvoy İndirme Asistanı $($Ctx.Version)"
             }
@@ -214,24 +226,67 @@ function Show-AssistantWindow {
         $progress.Value = if ($t.TotalBytes) { [int](1000 * $t.DoneBytes / $t.TotalBytes) } else { 0 }
         $lblTotal.Text = "$($t.DoneFiles) / $($t.Files) dosya  ·  $(Format-Size $t.DoneBytes) / $(Format-Size $t.TotalBytes)"
         $hostOk = -not @(Get-HostFileReport $Ctx | Where-Object { $_.State -ne 'ok' }).Count
-        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc
+        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc
+        $sum = Get-InstallSummary $Ctx
+        $lblInstSum.Text = if ($sum.Total -and $sum.Installed -eq $sum.Total) { "Oyunda kurulu: $($sum.Total) / $($sum.Total) ✓" } else { "Oyunda kurulu: $($sum.Installed) / $($sum.Total)" }
+        $lblInstSum.ForeColor = if ($sum.Total -and $sum.Installed -eq $sum.Total) { $green } else { [System.Drawing.SystemColors]::ControlText }
         if ($act.Kind -eq 'done' -and -not $hostOk) { $lblInstall.Text = 'Host''tan gelen dosya eksik/farklı, "1. Ön kontrol" sekmesine bak.'; $lblInstall.ForeColor = $red }
+    }
+
+    $handleDrop = {
+        # Sürükle-bırak olayında soru sorulmaz (Gezgin bırakma bitene kadar donar); zamanlayıcıdan çağrılır
+        $paths = @($ui.PendingDrop); $ui.PendingDrop = $null
+        if ($ui.AddProc -or $ui.InstallProc) {
+            [System.Windows.Forms.MessageBox]::Show($form, 'Önceki kurulum hâlâ sürüyor. Siyah pencere kapanınca tekrar bırak.', 'Dosya ekleme') | Out-Null
+            return
+        }
+        $names = @($paths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+        $shown = if ($names.Count -gt 12) { (@($names[0..11]) -join "`r`n") + "`r`n… ve $($names.Count - 12) tane daha" } else { $names -join "`r`n" }
+        $q = [System.Windows.Forms.MessageBox]::Show($form,
+            "Bırakılanlar:`r`n$shown`r`n`r`nArşivler açılıp modlar oyunun mod klasörüne kurulacak; host'un listesindekiler host'unkiyle karşılaştırılır.`r`nOyun kapalı olmalı. Devam edilsin mi?",
+            'Dosyaları kur', 'YesNo', 'Question')
+        if ($q -ne 'Yes') { return }
+        $rf = Join-Path $Ctx.PackageRoot 'birakma-sonucu.json'
+        if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
+        $ui.AddProc = Start-DropInstall $Ctx $paths $rf
+        $tabs.SelectedTab = $tabInstall
+        $lblInstall.Text = 'Bırakılan dosyalar kuruluyor… Siyah pencerede "Bitti" yazınca Enter''a bas.'; $lblInstall.ForeColor = $blue
+    }
+
+    $showAddResult = {
+        param($res)
+        if (-not $res) { $lblInstall.Text = 'Kurulum yarıda kaldı ya da hata verdi.'; $lblInstall.ForeColor = $red; return }
+        if (Get-Prop $res 'Error') { $lblInstall.Text = "Hata: $($res.Error)"; $lblInstall.ForeColor = $red; return }
+        $lines = @("Kurulan / zaten kurulu: $(@(Get-Prop $res 'Installed' @()).Count) dosya")
+        $diff = @(Get-Prop $res 'Different' @()); if ($diff.Count) { $lines += "Host'unkinden FARKLI, kurulmadı: $($diff -join ', ')" }
+        $unl = @(Get-Prop $res 'Unlisted' @()); if ($unl.Count) { $lines += "Host'un listesinde yok (kuruldu ama konvoyda etkinleştirme): $($unl -join ', ')" }
+        $mp = @(Get-Prop $res 'MissingParts' @()); if ($mp.Count) { $lines += "Parçası eksik, açılamadı: $($mp -join '; ')" }
+        $ign = @(Get-Prop $res 'Ignored' @()); if ($ign.Count) { $lines += "Mod dosyası değil, atlandı: $($ign -join ', ')" }
+        $lblInstall.Text = $lines -join "`r`n"
+        $lblInstall.ForeColor = if ($diff.Count -or $mp.Count) { $red } else { $green }
     }
 
     $tick = {
         if ($ui.Busy) { return }
         $ui.Busy = $true
         try {
+            if ($ui.PendingDrop) { & $handleDrop }
             $lblWatch.Text = "İzlenen klasör: $($Ctx.DownloadsPath)"
+            [void](Update-InstalledState $Ctx)
             [void](Update-AssistantDownloads $Ctx -Notify $statusText)
             $lblWatch.Text = "İzlenen klasör: $($Ctx.DownloadsPath)   (tarayıcın başka yere kaydediyorsa 'Dosyayı elle seç' kullan)"
             & $refresh
-            foreach ($p in @('InstallProc', 'ExportProc')) {
+            foreach ($p in @('InstallProc', 'ExportProc', 'AddProc')) {
                 $proc = $ui[$p]
                 if ($proc -and $proc.HasExited) {
                     $ui[$p] = $null
-                    $rf = Join-Path $Ctx.PackageRoot ($(if ($p -eq 'InstallProc') { 'kurulum-sonucu.json' } else { 'kontrol-sonucu.json' }))
+                    $rf = Join-Path $Ctx.PackageRoot $(switch ($p) { 'InstallProc' { 'kurulum-sonucu.json' } 'AddProc' { 'birakma-sonucu.json' } default { 'kontrol-sonucu.json' } })
                     $res = if (Test-Path -LiteralPath $rf) { Read-JsonFile $rf } else { $null }
+                    if ($res -and $p -ne 'ExportProc') {
+                        Register-InstalledFiles $Ctx @(Get-Prop $res 'Installed' @())
+                        [void](Update-InstalledState $Ctx); & $refresh
+                    }
+                    if ($p -eq 'AddProc') { & $showAddResult $res; continue }
                     if ($p -eq 'InstallProc') {
                         if ($res -and (Get-Prop $res 'Ok' $false)) {
                             $lblInstall.Text = "Kurulum tamam ✓ Bütün dosyalar host'unkiyle aynı.`r`nŞimdi '4. Mod sırası' sekmesine bak ve oyunu aç."; $lblInstall.ForeColor = $green
@@ -296,8 +351,19 @@ function Show-AssistantWindow {
             $lblExport.Text = 'Oluşturuluyor… (oyun kapalı olmalı)'; $lblExport.ForeColor = $blue
         })
 
+    # Sürükle-bırak: pencerenin her yerine dosya/klasör bırakılabilir
+    $onDragEnter = { param($s, $e) if ($e.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) { $e.Effect = 'Copy' } }
+    $onDragDrop = { param($s, $e) $ui.PendingDrop = @($e.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)) }
+    $enableDrop = {
+        param($c)
+        $c.AllowDrop = $true; $c.Add_DragEnter($onDragEnter); $c.Add_DragDrop($onDragDrop)
+        foreach ($ch in $c.Controls) { & $enableDrop $ch }
+    }
+    & $enableDrop $form
+
     & $fillPrereq
     & $buildList
+    [void](Update-InstalledState $Ctx)
     & $tick
     $tabs.SelectedTab = if (@($ui.Prereq | Where-Object { $_.State -eq 'fail' }).Count) { $tabCheck } else { $tabDl }
 

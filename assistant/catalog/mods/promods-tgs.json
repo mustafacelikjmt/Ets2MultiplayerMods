@@ -5,6 +5,7 @@
   "site": "promods.net",
   "page": "https://promods.net/setup.php?game=tgs",
   "loginRequired": true,
+  "provides": [ "promods-tgs-assets-v170.scs", "promods-tgs-defmap-v170.scs" ],
   "variants": [
     {
       "id": "free",

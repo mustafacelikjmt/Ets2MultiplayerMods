@@ -7,6 +7,7 @@
     -ModSet verilirse (host'un Export-ModSet çıktısı) her dosyanın SHA256'sı host'unkiyle
     karşılaştırılır; uyuşmayan dosya kurulmaz. Sonunda host'ta olup hâlâ eksik olan
     elle kurulacak modlar listelenir. Mevcut dosyaların üzerine yazmak için -Force gerekir.
+    -AllowUnlisted: host listesinde olmayan dosyalar da kurulur (uyarıyla); listede olup farklı olanlar yine kurulmaz.
 
 .EXAMPLE
     .\tools\Install-ModPack.ps1 -Source D:\Indirilenler\konvoy-modlari -ModSet .\modset-mustafa.json
@@ -19,7 +20,8 @@ param(
     [Parameter(Mandatory)][string]$Source,
     [string]$ModSet,
     [switch]$Force,
-    # Sonucu (eksik/farklı dosyalar) JSON olarak yazar; indirme asistanı okur
+    [switch]$AllowUnlisted,
+    # Sonucu (kurulan/eksik/farklı dosyalar) JSON olarak yazar; indirme asistanı okur
     [string]$ResultFile
 )
 . "$PSScriptRoot\Ets2Common.ps1"
@@ -37,21 +39,28 @@ if ($ModSet) {
 $files = @(Get-ChildItem -LiteralPath $Source -File | Where-Object { $_.Extension -in '.scs', '.zip' })
 if (-not $files.Count) { Write-Host "Kaynakta .scs/.zip yok: $Source" -ForegroundColor Yellow }
 
+$installed = New-Object System.Collections.Generic.List[object]
+$different = New-Object System.Collections.Generic.List[string]
+$unlisted = New-Object System.Collections.Generic.List[string]
 foreach ($f in $files) {
     $hash = Get-FileSha256 $f.FullName
     $target = Join-Path $modDir $f.Name
     if ($expected.Count) {
         $exp = $expected[$f.Name]
-        if (-not $exp) { Write-Host "  [-] $($f.Name): host listesinde yok, atlandı" -ForegroundColor DarkYellow; continue }
-        if ($exp.Sha256 -ne $hash) { Write-Host "  [X] $($f.Name): host'unkinden FARKLI dosya, kurulmadı" -ForegroundColor Red; continue }
+        if (-not $exp) {
+            if (-not $AllowUnlisted) { Write-Host "  [-] $($f.Name): host listesinde yok, atlandı" -ForegroundColor DarkYellow; continue }
+            Write-Host "  [?] $($f.Name): host listesinde yok, yine de kuruluyor (konvoyda etkinleştirme)" -ForegroundColor DarkYellow
+            $unlisted.Add($f.Name)
+        } elseif ($exp.Sha256 -ne $hash) { Write-Host "  [X] $($f.Name): host'unkinden FARKLI dosya, kurulmadı" -ForegroundColor Red; $different.Add($f.Name); continue }
     }
     if (Test-Path -LiteralPath $target) {
-        if ((Get-FileSha256 $target) -eq $hash) { Write-Host "  [=] $($f.Name): zaten kurulu" -ForegroundColor DarkGray; continue }
+        if ((Get-FileSha256 $target) -eq $hash) { Write-Host "  [=] $($f.Name): zaten kurulu" -ForegroundColor DarkGray; $installed.Add([pscustomobject]@{ File = $f.Name; Sha256 = $hash }); continue }
         if (-not $Force) { Write-Host "  [!] $($f.Name): farklı bir sürüm kurulu. Üzerine yazmak için -Force" -ForegroundColor Yellow; continue }
     }
     if ($PSCmdlet.ShouldProcess($target, "Kopyala $($f.Name)")) {
         Copy-Item -LiteralPath $f.FullName -Destination $target -Force
         Write-Host "  [+] $($f.Name) kuruldu" -ForegroundColor Green
+        $installed.Add([pscustomobject]@{ File = $f.Name; Sha256 = $hash })
     }
 }
 
@@ -65,15 +74,19 @@ if ($expected.Count) {
         Write-Host 'Hâlâ eksik ya da farklı:' -ForegroundColor Red
         $stillMissing | Sort-Object | ForEach-Object { Write-Host "  $_" }
     } else { Write-Host 'Host''un elle kurulan modlarının hepsi birebir aynı şekilde kurulu.' -ForegroundColor Green }
-    if ($ResultFile) {
-        [pscustomobject]@{ Ok = (-not $stillMissing.Count); Missing = @($stillMissing | Sort-Object); Time = (Get-Date).ToString('s') } |
-            ConvertTo-Json | Set-Content -LiteralPath $ResultFile -Encoding UTF8
-    }
     $ws = @($set.Mods | Where-Object { $_.Source -eq 'workshop' } | Select-Object -ExpandProperty WorkshopId -Unique)
     if ($ws.Count) {
         Write-Host 'Workshop''tan abone olunacaklar:' -ForegroundColor Cyan
         $ws | ForEach-Object { Write-Host "  https://steamcommunity.com/sharedfiles/filedetails/?id=$_" }
     }
+}
+if ($ResultFile) {
+    $missing = if ($expected.Count) { @($stillMissing | Sort-Object) } else { @() }
+    [pscustomobject]@{
+        # ToArray: PS 5.1'de boş List'i @() ile hashtable'a koymak "Bağımsız değişken türleri eşleşmiyor" hatası veriyor
+        Ok = (-not $missing.Count -and -not $different.Count); Missing = $missing; Different = $different.ToArray(); Unlisted = $unlisted.ToArray()
+        Installed = $installed.ToArray(); Time = (Get-Date).ToString('s')
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultFile -Encoding UTF8
 }
 Write-Host ''
 Write-Host 'Son adım: oyunda Mod Yöneticisi''nde modları host''la AYNI SIRADA etkinleştir.' -ForegroundColor Cyan

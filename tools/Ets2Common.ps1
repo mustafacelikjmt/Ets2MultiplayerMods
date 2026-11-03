@@ -9,6 +9,8 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $script:Ets2AppId = '227300'
 
 function Get-Ets2DocumentsPath {
+    # Test için sahte oyun klasörü (gerçek mod klasörüne dokunmadan)
+    if ($env:ETS2KONVOY_DOCS) { return $env:ETS2KONVOY_DOCS }
     # OneDrive yönlendirmesi dahil gerçek Belgeler klasörü
     $docs = [Environment]::GetFolderPath('MyDocuments')
     $path = Join-Path $docs 'Euro Truck Simulator 2'

@@ -5,6 +5,7 @@
   "site": "promods.net",
   "page": "https://promods.net/setup.php?game=me",
   "loginRequired": true,
+  "provides": [ "promods-me-assets-v284.scs", "promods-me-defmap-v284.scs" ],
   "variants": [
     {
       "id": "free",

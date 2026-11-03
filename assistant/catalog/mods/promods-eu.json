@@ -5,6 +5,8 @@
   "site": "promods.net",
   "page": "https://promods.net/setup.php?game=ets",
   "loginRequired": true,
+  "provides": [ "promods-eu-assets-v284.scs", "promods-eu-dlcsupport-v284.zip", "promods-eu-map-v284.scs", "promods-eu-media-v284.scs",
+    "promods-eu-model1-v284.scs", "promods-eu-model2-v284.scs", "promods-eu-model3-v284.scs" ],
   "notes": [
     "Site önce 'DEF dosyası oluştur' adımını isteyebilir. Oluştur, ama indirilen def dosyasıyla bir şey yapma: konvoyda host'un def dosyası kullanılır, asistan onu zaten pakette getiriyor."
   ],

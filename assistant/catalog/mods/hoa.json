@@ -5,6 +5,7 @@
   "site": "TruckyMods",
   "page": "https://truckymods.io/d/euro-truck-simulator-2/horn-of-africa",
   "loginRequired": false,
+  "provides": [ "hoa_assets1.scs", "hoa_assets2.scs", "hoa_defmap.scs" ],
   "variants": [
     {
       "id": "free",

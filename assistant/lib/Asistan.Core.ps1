@@ -90,12 +90,13 @@ function New-AssistantContext {
     if (-not $DownloadsPath) { $DownloadsPath = Get-UserDownloadsFolder }
 
     $statePath = Join-Path $PackageRoot 'asistan-durum.json'
-    $state = @{ Cooldowns = @{}; Hashes = @{}; PreferredVariant = 'free' }
+    $state = @{ Cooldowns = @{}; Hashes = @{}; PreferredVariant = 'free'; Installed = @{} }
     if (Test-Path -LiteralPath $statePath) {
         try {
             $s = Read-JsonFile $statePath
             $state.Cooldowns = ConvertTo-Hashtable (Get-Prop $s 'Cooldowns')
             $state.Hashes = ConvertTo-Hashtable (Get-Prop $s 'Hashes')
+            $state.Installed = ConvertTo-Hashtable (Get-Prop $s 'Installed')
             $state.PreferredVariant = Get-Prop $s 'PreferredVariant' 'free'
         } catch { }
     }
@@ -144,6 +145,8 @@ function New-AssistantContext {
                 Page          = $def.page
                 LoginRequired = [bool](Get-Prop $def 'loginRequired' $false)
                 Notes         = @(Get-Prop $def 'notes' @())
+                Provides      = @(Get-Prop $def 'provides' @())   # arşivden çıkan, oyuna kurulan dosyalar
+                Installed     = $false
                 Variants      = $variants
             })
     }
@@ -158,6 +161,7 @@ function New-AssistantContext {
         ModSet        = $modSet
         ModSetPath    = $modSetPath
         IncomingPath  = $incoming
+        ModFolder     = Get-ModFolder
         DownloadsPath = $DownloadsPath
         StatePath     = $statePath
         State         = $state
@@ -179,6 +183,8 @@ function Get-ActiveVariant($Ctx, $Mod) {
 }
 
 function Test-ModComplete($Mod) {
+    # Oyuna kurulmuş modun dosyalarını indirmeye gerek yok
+    if ($Mod.Installed) { return $true }
     foreach ($v in $Mod.Variants) {
         if (-not @($v.Files | Where-Object { $_.Status -ne 'done' }).Count) { return $true }
     }
@@ -483,6 +489,76 @@ function Get-PrerequisiteReport($Ctx) {
     return $r
 }
 
+function Get-ModFolder {
+    try { return (Join-Path (Get-Ets2DocumentsPath) 'mod') } catch { return $null }
+}
+
+function Register-InstalledFiles($Ctx, $Installed) {
+    # Kurulum görevinin kurduğu dosyalar. Boyut + değiştirilme zamanı saklanır: sonra her açılışta
+    # 20 GB'ı yeniden hash'lemeden "hâlâ aynı dosya mı" bakılabilir.
+    if (-not $Ctx.ModFolder) { return }
+    foreach ($i in @($Installed)) {
+        $p = Join-Path $Ctx.ModFolder $i.File
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        $f = Get-Item -LiteralPath $p
+        # pscustomobject: JSON'dan okunan kayıtlarla aynı tür (Get-Prop ikisinde de çalışsın)
+        $Ctx.State.Installed[$i.File] = [pscustomobject]@{ Size = $f.Length; Ticks = $f.LastWriteTimeUtc.Ticks; Sha256 = $i.Sha256 }
+    }
+    Save-AssistantState $Ctx
+}
+
+function Test-FileInstalled($Ctx, [string]$Name) {
+    $rec = $Ctx.State.Installed[$Name]
+    if (-not $rec -or -not $Ctx.ModFolder) { return $false }
+    $p = Join-Path $Ctx.ModFolder $Name
+    if (-not (Test-Path -LiteralPath $p)) { return $false }
+    $f = Get-Item -LiteralPath $p
+    if ($f.Length -ne [long](Get-Prop $rec 'Size' 0) -or $f.LastWriteTimeUtc.Ticks -ne [long](Get-Prop $rec 'Ticks' 0)) { return $false }
+    if ($Ctx.ModSet) {
+        $exp = @($Ctx.ModSet.Mods | Where-Object { $_.File -eq $Name }) | Select-Object -First 1
+        if ($exp -and $exp.Sha256 -and $exp.Sha256 -ne (Get-Prop $rec 'Sha256')) { return $false }
+    }
+    return $true
+}
+
+function Update-InstalledState($Ctx) {
+    $changed = $false
+    foreach ($mod in $Ctx.Mods) {
+        $now = $mod.Provides.Count -gt 0 -and -not @($mod.Provides | Where-Object { -not (Test-FileInstalled $Ctx $_) }).Count
+        if ($now -ne $mod.Installed) { $mod.Installed = $now; $changed = $true }
+    }
+    return $changed
+}
+
+function Get-InstallSummary($Ctx) {
+    # Host'un elle kurduğu modlardan hangileri bu bilgisayarda (asistanla) kurulu
+    $names = if ($Ctx.ModSet) { @($Ctx.ModSet.Mods | Where-Object { $_.Source -eq 'local' } | ForEach-Object { $_.File }) }
+    else { @($Ctx.Mods | ForEach-Object { $_.Provides }) + @(Get-Prop $Ctx.Pack 'hostFiles' @() | ForEach-Object { $_.name }) }
+    $missing = @($names | Where-Object { -not (Test-FileInstalled $Ctx $_) })
+    @{ Total = $names.Count; Installed = $names.Count - $missing.Count; Missing = $missing }
+}
+
+function Start-DropInstall($Ctx, [string[]]$Paths, [string]$ResultFile) {
+    # Sürükle-bırak: arşivler açılır, mod dosyaları doğrudan oyuna kurulur (ayrı pencerede).
+    # Host dosyaları (def) da her seferinde eklenir; aynıysa "zaten kurulu" geçer.
+    $files = foreach ($p in $Paths) {
+        if (Test-Path -LiteralPath $p -PathType Container) { Get-ChildItem -LiteralPath $p -File -Recurse | ForEach-Object { $_.FullName } }
+        elseif (Test-Path -LiteralPath $p) { (Get-Item -LiteralPath $p).FullName }
+    }
+    $hostFiles = @(Get-Prop $Ctx.Pack 'hostFiles' @() | ForEach-Object { Join-Path $Ctx.IncomingPath $_.name } | Where-Object { Test-Path -LiteralPath $_ })
+    # Çok parçalı arşivlerin parça sayısı (tek parça bırakılırsa eksikler anlaşılsın)
+    $partCounts = @{}
+    foreach ($spec in @($Ctx.Mods | ForEach-Object { $_.Variants } | ForEach-Object { $_.Files })) {
+        if ($spec.Name -and $spec.Name -match '^(.+\.7z)\.(\d{3})$') {
+            $n = [int]$Matches[2]
+            if (-not $partCounts[$Matches[1]] -or $partCounts[$Matches[1]] -lt $n) { $partCounts[$Matches[1]] = $n }
+        }
+    }
+    $listPath = Join-Path $Ctx.PackageRoot 'birakilan-dosyalar.json'
+    Write-JsonFile $listPath ([pscustomobject]@{ Files = @($files); HostFiles = $hostFiles; PartCounts = $partCounts })
+    return Start-AssistantTask $Ctx add -FileList $listPath -ResultFile $ResultFile
+}
+
 function Get-HostLoadOrder($Ctx) {
     if (-not $Ctx.ModSet) { return @() }
     return @(Get-ActiveModOrder @($Ctx.ModSet.ActiveModLog))
@@ -490,12 +566,13 @@ function Get-HostLoadOrder($Ctx) {
 
 function Start-AssistantTask {
     # Kurulum ve kontrol dosyası işleri ayrı bir PowerShell penceresinde çalışır (kullanıcı çıktıyı görür)
-    param($Ctx, [ValidateSet('install', 'export')][string]$Task, [string]$Label, [string]$ResultFile)
+    param($Ctx, [ValidateSet('install', 'add', 'export')][string]$Task, [string]$Label, [string]$FileList, [string]$ResultFile)
     $runner = Join-Path $Ctx.AssistantDir 'lib\Invoke-AssistantTask.ps1'
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Task', $Task,
         '-PackageRoot', "`"$($Ctx.PackageRoot)`"", '-ToolsDir', "`"$($Ctx.ToolsDir)`"")
     if ($Ctx.ModSetPath) { $argList += @('-ModSet', "`"$($Ctx.ModSetPath)`"") }
     if ($Label) { $argList += @('-Label', $Label) }
+    if ($FileList) { $argList += @('-FileList', "`"$FileList`"") }
     if ($ResultFile) { $argList += @('-ResultFile', "`"$ResultFile`"") }
     return Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -PassThru
 }
