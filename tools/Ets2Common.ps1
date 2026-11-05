@@ -250,3 +250,6 @@ function Get-Ets2OwnedDlcAppIds {
     }
     return @()
 }
+
+# Profil mod listesi araçları (eski paketlerde bulunmayabilir).
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'ProfileModOrder.ps1')) { . (Join-Path $PSScriptRoot 'ProfileModOrder.ps1') }

@@ -244,7 +244,7 @@ function Show-AssistantWindow {
     $green = $T.Green; $blue = $T.Accent; $red = $T.Red; $orange = $T.Orange
     $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; AddProc = $null; CompatProc = $null
         PendingDrop = $null; Prereq = @(); Page = 0; Ratio = 0.0; DragHot = $false
-        Bg = $null; AfterMove = $null; DropPaths = @(); LastBackup = $null }
+        Bg = $null; AfterMove = $null; DropPaths = @(); LastBackup = $null; ProfileProc=$null; ProfileBackup=$Ctx.State.ProfileBackup }
 
     $form = New-Control Form @{
         Text = "ETS2 Mod Asistanı $($Ctx.Version)"; Size = New-Object System.Drawing.Size(1100, 780)
@@ -423,13 +423,29 @@ function Show-AssistantWindow {
     $lvOrder = New-DarkList @(@('#', 56), @('Mod Yöneticisi''nde görünen ad', 460), @('Dosya', 360))
     $orderCard = New-Card 0 'Fill'; $orderCard.Padding = New-Object System.Windows.Forms.Padding(1)
     $orderCard.Controls.Add($lvOrder)
-    $lblOrder = New-Text "Oyunda Profil → Mod Yöneticisi'nde bu modları etkinleştir ve YUKARIDAN AŞAĞIYA bu sırayla diz. Başka mod ekleme; konvoyda host'la birebir aynı liste olmalı." $T.Font $T.Muted 44
+    $lblOrder = New-Text "Aşağıdaki sıra yukarıdan aşağıyadır. Profilini seçip otomatik uygulayabilirsin. Seçilen profilde yalnızca paketin modları etkin kalır. Oyun kapalı olmalı; Steam Cloud profili için Steam'den de çıkış yap." $T.Font $T.Muted 44
     $lblOrder.AutoEllipsis = $false
     $order = @(Get-HostLoadOrder $Ctx)
     $i = 0
     foreach ($o in $order) { $i++; [void](New-ListRow $lvOrder @([string]$i, $o.Name, $o.Package)) }
     if (-not $order.Count) { $lblOrder.Text = 'Host''un mod sırası pakette yok. Sırayı host''a sor.' }
-    Add-Stack $pageOrder @((New-Text 'Mod sırası' $T.FontH2 $T.Text 30), $lblOrder, (New-Spacer 6), $orderCard)
+    $profileCard=New-Card 152
+    $profileRow=New-Flow 46
+    $profileChoice=New-Control ComboBox @{ Width=270; DropDownStyle='DropDownList'; DisplayMember='Display'; BackColor=$T.Surface2; ForeColor=$T.Text }
+    $btnProfiles=New-Button 'Profilleri yenile' 150
+    $btnApplyProfile=New-Button 'Modları etkinleştir ve sırala' 260 -Primary
+    $btnRestoreProfile=New-Button 'Geri al' 110
+    $profileRow.Controls.AddRange(@($profileChoice,$btnProfiles,$btnApplyProfile,$btnRestoreProfile))
+    $lblProfile=New-Control Label @{ Dock='Fill'; ForeColor=$T.Muted; Text='İşlem öncesi profil yedeklenir. Para, araç, görev ve sürüş kayıtları değiştirilmez.'; Padding=(New-Object Windows.Forms.Padding(0,6,0,0)) }
+    Add-Stack $profileCard @((New-Text 'Otomatik aktivasyon ve sıralama' $T.FontH2 $T.Text 30),$profileRow,$lblProfile)
+    Add-Stack $pageOrder @((New-Text 'Mod sırası' $T.FontH2 $T.Text 30), $lblOrder,$profileCard, (New-Spacer 6), $orderCard)
+    $loadProfiles={
+        $profileChoice.Items.Clear()
+        foreach($profileItem in @(Get-Ets2ModProfiles)) { [void]$profileChoice.Items.Add($profileItem) }
+        if($profileChoice.Items.Count -eq 1){$profileChoice.SelectedIndex=0}
+        if(-not $profileChoice.Items.Count){$lblProfile.Text='Profil bulunamadı. Oyunda bir profil oluştur, oyunu kapat ve Profilleri yenile düğmesine bas.'}
+    }
+    & $loadProfiles
 
     $pages = @($pageCheck, $pageDl, $pageInstall, $pageOrder)
     Add-Stack $content $pages
@@ -574,10 +590,16 @@ function Show-AssistantWindow {
         $trackFill.BackColor = if ($ui.Ratio -ge 1) { $green } else { $T.Accent }
         Set-Text $lblTotal $("$($tot.DoneFiles) / $($tot.Files) dosya   ·   $(Format-Size $tot.DoneBytes) / $(Format-Size $tot.TotalBytes)")
         $hostOk = -not @(Get-HostFileReport $Ctx | Where-Object { $_.State -ne 'ok' }).Count
-        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.CompatProc
+        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.CompatProc -and -not $ui.ProfileProc
         $btnCompat.Enabled = [bool]$Ctx.ModFolder -and [bool]$Ctx.CompatibilityProfile -and (Test-Path -LiteralPath $Ctx.CompatibilityProfile) -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.ExportProc -and -not $ui.CompatProc -and -not $ui.Bg
         $btnExport.Enabled = -not $ui.CompatProc -and -not $ui.ExportProc
         $btnClean.Enabled = -not $ui.CompatProc -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.Bg
+        $profileBusy=$ui.ProfileProc -or $ui.CompatProc -or $ui.InstallProc -or $ui.AddProc -or $ui.ExportProc -or $ui.Bg
+        $btnApplyProfile.Enabled=($null -ne $profileChoice.SelectedItem) -and -not $profileBusy
+        $btnRestoreProfile.Enabled=[bool]$ui.ProfileBackup -and -not $profileBusy
+        $btnProfiles.Enabled=-not $profileBusy
+        $profileChoice.Enabled=-not $profileBusy
+        if($ui.ProfileProc){$btnCompat.Enabled=$false;$btnExport.Enabled=$false;$btnClean.Enabled=$false}
         if ($act.Kind -eq 'done' -and -not $hostOk) { $lblInstall.Text = 'Host''tan gelen dosya eksik/farklı, "1  Ön kontrol" sayfasına bak.'; $lblInstall.ForeColor = $red }
         $sum = Get-InstallSummary $Ctx
         $allIn = $sum.Total -and $sum.Installed -eq $sum.Total
@@ -696,7 +718,7 @@ function Show-AssistantWindow {
     $handleDrop = {
         # Sürükle-bırak olayında soru sorulmaz (Gezgin bırakma bitene kadar donar); zamanlayıcıdan çağrılır
         $paths = @($ui.PendingDrop); $ui.PendingDrop = $null
-        if ($ui.AddProc -or $ui.InstallProc -or $ui.CompatProc -or $ui.Bg) {
+        if ($ui.AddProc -or $ui.InstallProc -or $ui.CompatProc -or $ui.ProfileProc -or $ui.Bg) {
             [System.Windows.Forms.MessageBox]::Show($form, 'Önceki iş hâlâ sürüyor. Bitince tekrar bırak.', 'Dosya ekleme') | Out-Null
             return
         }
@@ -743,6 +765,20 @@ function Show-AssistantWindow {
             [void](Update-AssistantDownloads $Ctx -Notify $statusText)
             if ($lblWatch.Text -ne $watchText) { $lblWatch.Text = $watchText; $lblWatch.ForeColor = $T.Muted }
             & $refresh
+            if($ui.ProfileProc -and $ui.ProfileProc.HasExited) {
+                $ui.ProfileProc=$null
+                $profileResultPath=Join-Path $Ctx.PackageRoot 'profil-sonucu.json'
+                $profileResult=if(Test-Path -LiteralPath $profileResultPath){Read-JsonFile $profileResultPath}else{$null}
+                if($profileResult -and (Get-Prop $profileResult 'Ok' $false)) {
+                    if(Get-Prop $profileResult 'Restored' $false){$lblProfile.Text='Önceki profil mod ayarı geri yüklendi.';$ui.ProfileBackup=$null}
+                    else{
+                        $lblProfile.Text="$($profileResult.ModCount) mod etkin ve doğru sırada. Steam'i ve oyunu açıp bu profili yükleyebilirsin."
+                        if(Get-Prop $profileResult 'BackupDir'){$ui.ProfileBackup=$profileResult.BackupDir}
+                    }
+                    $lblProfile.ForeColor=$green
+                    $Ctx.State.ProfileBackup=$ui.ProfileBackup; Save-AssistantState $Ctx
+                }else{$lblProfile.Text="İşlem tamamlanamadı: $(Get-Prop $profileResult 'Error' 'İşlem sonucu alınamadı.')";$lblProfile.ForeColor=$red}
+            }
             foreach ($p in @('InstallProc', 'ExportProc', 'AddProc', 'CompatProc')) {
                 $proc = $ui[$p]
                 if ($proc -and $proc.HasExited) {
@@ -814,14 +850,14 @@ function Show-AssistantWindow {
             & $refresh
         })
     $btnInstall.Add_Click({
-            if ($ui.Bg -or $ui.CompatProc -or $ui.InstallProc -or $ui.AddProc) { return }
+            if ($ui.Bg -or $ui.CompatProc -or $ui.ProfileProc -or $ui.InstallProc -or $ui.AddProc) { return }
             $q = [System.Windows.Forms.MessageBox]::Show($form,
                 "Arşivler açılıp oyunun mod klasörüne kurulacak (birkaç dakika sürer).`r`nOyun kapalı olmalı. Devam edilsin mi?", 'Kurulum', 'YesNo', 'Question')
             if ($q -ne 'Yes') { return }
             & $askConflictsThen $startFullInstall
         })
     $btnClean.Add_Click({
-            if ($ui.Bg -or $ui.AddProc -or $ui.InstallProc -or $ui.CompatProc) { return }
+            if ($ui.Bg -or $ui.AddProc -or $ui.InstallProc -or $ui.CompatProc -or $ui.ProfileProc) { return }
             if (-not $Ctx.ModFolder -or -not (Test-Path -LiteralPath $Ctx.ModFolder)) {
                 [System.Windows.Forms.MessageBox]::Show($form, 'Oyunun mod klasörü bulunamadı. Oyunu bir kez açıp kapat.', 'Mod klasörü') | Out-Null; return
             }
@@ -834,7 +870,7 @@ function Show-AssistantWindow {
             if (Test-Path -LiteralPath $p) { Start-Process explorer.exe -ArgumentList "`"$p`"" }
         })
     $btnExport.Add_Click({
-            if ($ui.CompatProc) { return }
+            if ($ui.CompatProc -or $ui.ProfileProc) { return }
             $label = ($txtName.Text.Trim().ToLowerInvariant() -replace '[^a-z0-9_-]', '')
             if (-not $label) { $label = 'arkadas' }
             $rf = Join-Path $Ctx.PackageRoot 'kontrol-sonucu.json'
@@ -845,7 +881,7 @@ function Show-AssistantWindow {
         })
 
     $btnCompat.Add_Click({
-            if ($ui.CompatProc -or $ui.InstallProc -or $ui.AddProc -or $ui.ExportProc -or $ui.Bg) { return }
+            if ($ui.CompatProc -or $ui.ProfileProc -or $ui.InstallProc -or $ui.AddProc -or $ui.ExportProc -or $ui.Bg) { return }
             $rf = Join-Path $Ctx.PackageRoot 'uyumluluk-sonucu.json'
             if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
             $ui.CompatProc = Start-AssistantTask $Ctx compat -ResultFile $rf
@@ -853,6 +889,21 @@ function Show-AssistantWindow {
             $lblCompat.Text = 'Modlar kontrol ediliyor, yedekleniyor ve 1.62 düzeltmesi hazırlanıyor… Asistanı kapatma.'
             $lblCompat.ForeColor = $blue
         })
+    $startProfileTask={param($taskName)
+        if($ui.ProfileProc -or $ui.InstallProc -or $ui.AddProc -or $ui.CompatProc -or $ui.ExportProc -or $ui.Bg){return}
+        $rf=Join-Path $Ctx.PackageRoot 'profil-sonucu.json'
+        if(Test-Path -LiteralPath $rf){Remove-Item -LiteralPath $rf}
+        $profileArgs=@{ResultFile=$rf}
+        if($taskName -eq 'profile'){
+            if($null -eq $profileChoice.SelectedItem){return}
+            $profileArgs.ProfilePath=$profileChoice.SelectedItem.Path
+        }else{$profileArgs.ProfileBackup=$ui.ProfileBackup}
+        $ui.ProfileProc=Start-AssistantTask $Ctx $taskName @profileArgs
+        $lblProfile.Text='Mod dosyaları doğrulanıyor ve profil işlemi hazırlanıyor… Asistanı kapatma.';$lblProfile.ForeColor=$blue
+    }
+    $btnProfiles.Add_Click({& $loadProfiles})
+    $btnApplyProfile.Add_Click({& $startProfileTask 'profile'})
+    $btnRestoreProfile.Add_Click({& $startProfileTask 'restoreprofile'})
     $btnCompatBackup.Add_Click({
             $backupPath = Join-Path $Ctx.PackageRoot 'yedek-modlar\uyumluluk'
             if (Test-Path -LiteralPath $backupPath) { Start-Process explorer.exe -ArgumentList "`"$backupPath`"" }

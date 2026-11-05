@@ -5,7 +5,7 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('install', 'add', 'export', 'compat')][string]$Task,
+    [Parameter(Mandatory)][ValidateSet('install', 'add', 'export', 'compat', 'profile', 'restoreprofile')][string]$Task,
     [Parameter(Mandatory)][string]$PackageRoot,
     [Parameter(Mandatory)][string]$ToolsDir,
     [string]$ModSet,
@@ -14,13 +14,19 @@ param(
     [string]$FileList,
     [string]$ResultFile,
     [string]$CompatibilityProfile,
-    [switch]$NoPause
+    [switch]$NoPause,
+    [string]$ProfilePath,
+    [string]$ProfileBackup
 )
 $ErrorActionPreference = 'Stop'
 # Üzerine yazılacak eski sürümler buraya taşınır (sadece gerekirse oluşur)
 $oldVersions = Join-Path $PackageRoot ("yedek-modlar\{0:yyyy-MM-dd_HHmmss}_eski-surumler" -f (Get-Date))
 try {
-    if ($Task -eq 'compat') {
+    if ($Task -in 'profile','restoreprofile') {
+        . (Join-Path $ToolsDir 'Ets2Common.ps1')
+        $result = if ($Task -eq 'profile') { Set-Ets2ProfileModOrder -ProfilePath $ProfilePath -ModSet $ModSet -BackupRoot (Join-Path $PackageRoot 'yedek-profiller') } else { Restore-Ets2ModProfile -BackupDir $ProfileBackup }
+        if ($ResultFile) { $result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultFile -Encoding UTF8 }
+    } elseif ($Task -eq 'compat') {
         if (-not $CompatibilityProfile) { throw 'Uyumluluk profili pakette yok.' }
         $compatArgs = @{ Profile = $CompatibilityProfile; BackupRoot = (Join-Path $PackageRoot 'yedek-modlar\uyumluluk'); ResultFile = $ResultFile }
         if ($ModSet) { $compatArgs.ModSet = $ModSet }

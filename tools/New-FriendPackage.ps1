@@ -54,7 +54,7 @@ Copy-Item -LiteralPath (Join-Path $assistant 'Asistan.cmd') -Destination $OutDir
 # Araçlar
 $tools = Join-Path $OutDir 'araclar'
 New-Item -ItemType Directory -Path $tools | Out-Null
-foreach ($t in 'Ets2Common.ps1', 'Expand-ModArchives.ps1', 'Install-ModPack.ps1', 'Export-ModSet.ps1', 'Compare-ModSet.ps1', 'Update-ModCompatibility.ps1', 'CompatibilityPatch.cs') {
+foreach ($t in 'Ets2Common.ps1', 'Expand-ModArchives.ps1', 'Install-ModPack.ps1', 'Export-ModSet.ps1', 'Compare-ModSet.ps1', 'Update-ModCompatibility.ps1', 'CompatibilityPatch.cs', 'ProfileModOrder.cs', 'ProfileModOrder.ps1') {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $t) -Destination $tools
 }
 

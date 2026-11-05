@@ -90,13 +90,14 @@ function New-AssistantContext {
     if (-not $DownloadsPath) { $DownloadsPath = Get-UserDownloadsFolder }
 
     $statePath = Join-Path $PackageRoot 'asistan-durum.json'
-    $state = @{ Cooldowns = @{}; Hashes = @{}; PreferredVariant = 'free'; Installed = @{} }
+    $state = @{ Cooldowns = @{}; Hashes = @{}; PreferredVariant = 'free'; Installed = @{}; ProfileBackup=$null }
     if (Test-Path -LiteralPath $statePath) {
         try {
             $s = Read-JsonFile $statePath
             $state.Cooldowns = ConvertTo-Hashtable (Get-Prop $s 'Cooldowns')
             $state.Hashes = ConvertTo-Hashtable (Get-Prop $s 'Hashes')
             $state.Installed = ConvertTo-Hashtable (Get-Prop $s 'Installed')
+            $state.ProfileBackup = Get-Prop $s 'ProfileBackup'
             $state.PreferredVariant = Get-Prop $s 'PreferredVariant' 'free'
         } catch { }
     }
@@ -628,7 +629,7 @@ function Get-HostLoadOrder($Ctx) {
 
 function Start-AssistantTask {
     # Kurulum ve kontrol dosyası işleri ayrı bir PowerShell penceresinde çalışır (kullanıcı çıktıyı görür)
-    param($Ctx, [ValidateSet('install', 'add', 'export', 'compat')][string]$Task, [string]$Label, [string]$FileList, [string]$ResultFile)
+    param($Ctx, [ValidateSet('install', 'add', 'export', 'compat', 'profile', 'restoreprofile')][string]$Task, [string]$Label, [string]$FileList, [string]$ResultFile, [string]$ProfilePath, [string]$ProfileBackup)
     $runner = Join-Path $Ctx.AssistantDir 'lib\Invoke-AssistantTask.ps1'
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Task', $Task,
         '-PackageRoot', "`"$($Ctx.PackageRoot)`"", '-ToolsDir', "`"$($Ctx.ToolsDir)`"")
@@ -637,7 +638,9 @@ function Start-AssistantTask {
     if ($FileList) { $argList += @('-FileList', "`"$FileList`"") }
     if ($ResultFile) { $argList += @('-ResultFile', "`"$ResultFile`"") }
     if ($Ctx.CompatibilityProfile) { $argList += @('-CompatibilityProfile', "`"$($Ctx.CompatibilityProfile)`"") }
-    if ($Task -eq 'compat') {
+    if ($ProfilePath) { $argList += @('-ProfilePath', "`"$ProfilePath`"") }
+    if ($ProfileBackup) { $argList += @('-ProfileBackup', "`"$ProfileBackup`"") }
+    if ($Task -in 'compat','profile','restoreprofile') {
         $argList += '-NoPause'
         return Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -PassThru -WindowStyle Hidden
     }
