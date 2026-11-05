@@ -160,6 +160,7 @@ function New-AssistantContext {
         Pack          = $pack
         ModSet        = $modSet
         ModSetPath    = $modSetPath
+        CompatibilityProfile = $(if ((Get-Prop $pack 'compatibilityProfile') -match '^[a-z0-9-]+$') { Join-Path $PackageRoot "uyumluluk\$($pack.compatibilityProfile)\profile.json" } else { $null })
         IncomingPath  = $incoming
         ModFolder     = Get-ModFolder
         DownloadsPath = $DownloadsPath
@@ -560,14 +561,14 @@ function Get-ModFolderConflicts {
             $exp = $expected[$item.Name]
             if (-not $exp) { $hit = 'Host''un listesinde yok' }
             elseif (-not $Quick) {
-                if ($exp.SizeMB -and [Math]::Abs($item.Length / 1MB - [double]$exp.SizeMB) -gt 0.01) { $hit = 'Aynı ad, farklı sürüm' }
+                if (-not (Get-Prop $exp 'CompatibleOriginalSha256') -and $exp.SizeMB -and [Math]::Abs($item.Length / 1MB - [double]$exp.SizeMB) -gt 0.01) { $hit = 'Aynı ad, farklı sürüm' }
                 else {
                     $rec = $Installed[$item.Name]
                     $known = $rec -and [long](Get-Prop $rec 'Size' 0) -eq $item.Length -and [long](Get-Prop $rec 'Ticks' 0) -eq $item.LastWriteTimeUtc.Ticks -and (Get-Prop $rec 'Sha256') -eq $exp.Sha256
                     if (-not $known) {
                         $key = '{0}|{1}|{2}' -f $item.Name, $item.Length, $item.LastWriteTimeUtc.Ticks
                         if (-not $HashCache.ContainsKey($key)) { $HashCache[$key] = Get-FileSha256 $item.FullName }
-                        if ($HashCache[$key] -ne $exp.Sha256) { $hit = 'Aynı ad, farklı içerik' }
+                        if ($HashCache[$key] -ne $exp.Sha256 -and $HashCache[$key] -ne (Get-Prop $exp 'CompatibleOriginalSha256')) { $hit = 'Aynı ad, farklı içerik' }
                     }
                 }
             }
@@ -627,7 +628,7 @@ function Get-HostLoadOrder($Ctx) {
 
 function Start-AssistantTask {
     # Kurulum ve kontrol dosyası işleri ayrı bir PowerShell penceresinde çalışır (kullanıcı çıktıyı görür)
-    param($Ctx, [ValidateSet('install', 'add', 'export')][string]$Task, [string]$Label, [string]$FileList, [string]$ResultFile)
+    param($Ctx, [ValidateSet('install', 'add', 'export', 'compat')][string]$Task, [string]$Label, [string]$FileList, [string]$ResultFile)
     $runner = Join-Path $Ctx.AssistantDir 'lib\Invoke-AssistantTask.ps1'
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Task', $Task,
         '-PackageRoot', "`"$($Ctx.PackageRoot)`"", '-ToolsDir', "`"$($Ctx.ToolsDir)`"")
@@ -635,5 +636,10 @@ function Start-AssistantTask {
     if ($Label) { $argList += @('-Label', $Label) }
     if ($FileList) { $argList += @('-FileList', "`"$FileList`"") }
     if ($ResultFile) { $argList += @('-ResultFile', "`"$ResultFile`"") }
+    if ($Ctx.CompatibilityProfile) { $argList += @('-CompatibilityProfile', "`"$($Ctx.CompatibilityProfile)`"") }
+    if ($Task -eq 'compat') {
+        $argList += '-NoPause'
+        return Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -PassThru -WindowStyle Hidden
+    }
     return Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -PassThru
 }

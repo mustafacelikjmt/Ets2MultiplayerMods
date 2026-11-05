@@ -3,7 +3,9 @@
   "name": "Konvoy haritaları – Kasım 2026",
   "description": "ProMods Europe + Middle-East + Maghreb + The Great Steppe, BXP Türkiye, Horn of Africa",
   "game": "ets2",
-  "gameVersion": "1.61",
+  "gameVersion": "1.62",
+  "compatibilityProfile": "promods-161-to-162",
+  "minAssistantVersion": "0.2.3",
   "diskGb": 60,
   "requiredDlcs": [
     { "appId": "227310", "name": "Going East!" },

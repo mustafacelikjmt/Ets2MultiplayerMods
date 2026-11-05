@@ -77,3 +77,4 @@ temp/
 *.tmp
 __pycache__/
 *.pyc
+*.etspatch

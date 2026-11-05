@@ -23,6 +23,7 @@ param(
     [string]$Pack = 'konvoy-2026-11',
     [string]$PlayerLabel = 'arkadas',
     [string]$Guide,
+    [string]$CompatibilityProfile,
     [Parameter(Mandatory)][string]$OutDir,
     [string]$Exe,
     [switch]$Force
@@ -34,6 +35,9 @@ if (-not (Test-Path -LiteralPath (Join-Path $assistant "catalog\packs\$Pack.json
 
 if (Test-Path -LiteralPath $OutDir) {
     if (-not $Force) { throw "$OutDir zaten var. Üzerine yazmak için -Force." }
+    $resolvedOut = [IO.Path]::GetFullPath($OutDir).TrimEnd('\')
+    $distRoot = [IO.Path]::GetFullPath((Join-Path $repo 'dist')).TrimEnd('\') + '\'
+    if (-not $resolvedOut.StartsWith($distRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Var olan çıktı yalnızca projenin dist klasörü altında temizlenebilir.' }
     Remove-Item -LiteralPath $OutDir -Recurse -Force
 }
 New-Item -ItemType Directory -Path $OutDir | Out-Null
@@ -50,13 +54,34 @@ Copy-Item -LiteralPath (Join-Path $assistant 'Asistan.cmd') -Destination $OutDir
 # Araçlar
 $tools = Join-Path $OutDir 'araclar'
 New-Item -ItemType Directory -Path $tools | Out-Null
-foreach ($t in 'Ets2Common.ps1', 'Expand-ModArchives.ps1', 'Install-ModPack.ps1', 'Export-ModSet.ps1', 'Compare-ModSet.ps1') {
+foreach ($t in 'Ets2Common.ps1', 'Expand-ModArchives.ps1', 'Install-ModPack.ps1', 'Export-ModSet.ps1', 'Compare-ModSet.ps1', 'Update-ModCompatibility.ps1', 'CompatibilityPatch.cs') {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $t) -Destination $tools
 }
 
 # Host dosyaları
 $msName = 'modset-host.json'
 Copy-Item -LiteralPath $ModSet -Destination (Join-Path $OutDir $msName)
+if ($CompatibilityProfile) {
+    $profileFile = Join-Path $CompatibilityProfile 'profile.json'
+    $profile = [IO.File]::ReadAllText($profileFile, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    if ($profile.Id -notmatch '^[a-z0-9-]+$') { throw 'Geçersiz uyumluluk profil kimliği.' }
+    $profileOut = Join-Path $OutDir "uyumluluk\$($profile.Id)"
+    New-Item -ItemType Directory -Path $profileOut -Force | Out-Null
+    Copy-Item -LiteralPath $profileFile -Destination $profileOut
+    foreach ($file in $profile.Files) {
+        if ([IO.Path]::GetFileName($file.Patch) -cne $file.Patch) { throw 'Geçersiz yama adı.' }
+        Copy-Item -LiteralPath (Join-Path $CompatibilityProfile $file.Patch) -Destination $profileOut
+    }
+    $setPath = Join-Path $OutDir $msName
+    $set = [IO.File]::ReadAllText($setPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    foreach ($record in $set.Mods) {
+        $rule = @($profile.Files | Where-Object { $_.File -eq $record.File -and $_.PatchedSha256 -ieq $record.Sha256 }) | Select-Object -First 1
+        if ($rule) { $record | Add-Member -NotePropertyName CompatibleOriginalSha256 -NotePropertyValue $rule.OriginalSha256 -Force }
+    }
+    [IO.File]::WriteAllText($setPath, ($set | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding $false))
+} elseif (([IO.File]::ReadAllText((Join-Path $assistant "catalog\packs\$Pack.json")) | ConvertFrom-Json).PSObject.Properties['compatibilityProfile']) {
+    throw 'Bu paket için yerel CompatibilityProfile dizini gerekli.'
+}
 $incoming = Join-Path $OutDir 'indirilenler'
 New-Item -ItemType Directory -Path $incoming | Out-Null
 foreach ($h in $HostFile) { Copy-Item -LiteralPath $h -Destination $incoming }

@@ -5,20 +5,27 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('install', 'add', 'export')][string]$Task,
+    [Parameter(Mandatory)][ValidateSet('install', 'add', 'export', 'compat')][string]$Task,
     [Parameter(Mandatory)][string]$PackageRoot,
     [Parameter(Mandatory)][string]$ToolsDir,
     [string]$ModSet,
     [string]$Label = 'arkadas',
     # add: { Files = [...], HostFiles = [...] } içeren JSON
     [string]$FileList,
-    [string]$ResultFile
+    [string]$ResultFile,
+    [string]$CompatibilityProfile,
+    [switch]$NoPause
 )
 $ErrorActionPreference = 'Stop'
 # Üzerine yazılacak eski sürümler buraya taşınır (sadece gerekirse oluşur)
 $oldVersions = Join-Path $PackageRoot ("yedek-modlar\{0:yyyy-MM-dd_HHmmss}_eski-surumler" -f (Get-Date))
 try {
-    if ($Task -eq 'add') {
+    if ($Task -eq 'compat') {
+        if (-not $CompatibilityProfile) { throw 'Uyumluluk profili pakette yok.' }
+        $compatArgs = @{ Profile = $CompatibilityProfile; BackupRoot = (Join-Path $PackageRoot 'yedek-modlar\uyumluluk'); ResultFile = $ResultFile }
+        if ($ModSet) { $compatArgs.ModSet = $ModSet }
+        & (Join-Path $ToolsDir 'Update-ModCompatibility.ps1') @compatArgs | Out-Null
+    } elseif ($Task -eq 'add') {
         $Host.UI.RawUI.WindowTitle = 'ETS2 Mod Asistanı – Bırakılan dosyalar kuruluyor'
         $list = [System.IO.File]::ReadAllText($FileList, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
         $incoming = Join-Path $PackageRoot 'indirilenler'
@@ -63,13 +70,22 @@ try {
             Write-Host 'Dosyalar açılıyor (büyük arşivler birkaç dakika sürebilir, pencereyi kapatma)...' -ForegroundColor Cyan
             if ($files.Count) { & (Join-Path $ToolsDir 'Expand-ModArchives.ps1') -Path @($files.Keys) -Destination $staging -NoHint }
             else { New-Item -ItemType Directory -Path $staging | Out-Null }
+            if ($CompatibilityProfile) {
+                & (Join-Path $ToolsDir 'Update-ModCompatibility.ps1') -Profile $CompatibilityProfile -Source $staging -BackupRoot $oldVersions | Out-Null
+            }
             Write-Host ''
             Write-Host 'Oyunun mod klasörüne kuruluyor...' -ForegroundColor Cyan
             $installArgs = @{ Source = $staging; Force = $true; AllowUnlisted = $true; BackupDir = $oldVersions }
             if ($ModSet) { $installArgs.ModSet = $ModSet }
             if ($ResultFile) { $installArgs.ResultFile = $ResultFile }
             & (Join-Path $ToolsDir 'Install-ModPack.ps1') @installArgs
-        } finally { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue }
+        } finally {
+            $stageFull = [IO.Path]::GetFullPath($staging)
+            $packageFull = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\') + '\'
+            if ($stageFull.StartsWith($packageFull, [StringComparison]::OrdinalIgnoreCase) -and [IO.Path]::GetFileName($stageFull).StartsWith('_kurulum_')) {
+                Remove-Item -LiteralPath $stageFull -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
 
         if ($missingParts.Count) {
             Write-Host ''
@@ -87,6 +103,9 @@ try {
         Write-Host 'Arşivler açılıyor (birkaç dakika sürebilir, pencereyi kapatma)...' -ForegroundColor Cyan
         $modlar = Join-Path $PackageRoot 'modlar'
         & (Join-Path $ToolsDir 'Expand-ModArchives.ps1') -Source (Join-Path $PackageRoot 'indirilenler') -Destination $modlar -NoHint
+        if ($CompatibilityProfile) {
+            & (Join-Path $ToolsDir 'Update-ModCompatibility.ps1') -Profile $CompatibilityProfile -Source $modlar -BackupRoot $oldVersions | Out-Null
+        }
         Write-Host ''
         Write-Host 'Oyunun mod klasörüne kuruluyor ve host''un dosyalarıyla karşılaştırılıyor...' -ForegroundColor Cyan
         $installArgs = @{ Source = $modlar; Force = $true; BackupDir = $oldVersions }
@@ -105,4 +124,4 @@ try {
     if ($ResultFile) { [pscustomobject]@{ Ok = $false; Error = $_.Exception.Message } | ConvertTo-Json | Set-Content -LiteralPath $ResultFile -Encoding UTF8 }
 }
 Write-Host ''
-Read-Host 'Bitti. Pencereyi kapatmak için Enter''a bas'
+if (-not $NoPause) { Read-Host 'Bitti. Pencereyi kapatmak için Enter''a bas' }

@@ -56,6 +56,7 @@ $pkgArgs = @{
     Force    = $true
 }
 if ($cfg.PSObject.Properties['Guide'] -and $cfg.Guide) { $pkgArgs.Guide = & $inRepo $cfg.Guide }
+if ($cfg.PSObject.Properties['CompatibilityProfile'] -and $cfg.CompatibilityProfile) { $pkgArgs.CompatibilityProfile = & $inRepo $cfg.CompatibilityProfile }
 & (Join-Path $PSScriptRoot 'New-FriendPackage.ps1') @pkgArgs
 
 # 3) Masaüstü

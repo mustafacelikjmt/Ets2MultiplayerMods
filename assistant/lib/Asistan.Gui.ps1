@@ -242,7 +242,7 @@ function Show-AssistantWindow {
     param($Ctx, [switch]$Snapshot, [string]$SnapshotPath)
     $T = $script:T
     $green = $T.Green; $blue = $T.Accent; $red = $T.Red; $orange = $T.Orange
-    $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; AddProc = $null
+    $ui = @{ Busy = $false; Current = $null; Items = @{}; Groups = @{}; LastWait = @{}; InstallProc = $null; ExportProc = $null; AddProc = $null; CompatProc = $null
         PendingDrop = $null; Prereq = @(); Page = 0; Ratio = 0.0; DragHot = $false
         Bg = $null; AfterMove = $null; DropPaths = @(); LastBackup = $null }
 
@@ -406,7 +406,17 @@ function Show-AssistantWindow {
     $lblExport = New-Control Label @{ Dock = 'Fill'; ForeColor = $T.Muted; Padding = New-Object System.Windows.Forms.Padding(0, 8, 0, 0) }
     Add-Stack $exportCard @((New-Text 'Kontrol dosyası' $T.FontH2 $T.Text 30), $lblExportInfo, $flowExport, $lblExport)
 
-    Add-Stack $pageInstall @($dropZone, (New-Spacer 14), $installCard, (New-Spacer 14), $exportCard)
+    $compatCard = New-Card 204
+    $lblCompatInfo = New-Text "Bu bilgisayardaki mevcut ProMods paketlerini, Mustafa'nın denediği 1.62 düzeltmesiyle uyarlar. Orijinaller yedeklenir; zaten güncellenmiş dosyalar atlanır. Yeni kurulumlarda düzeltme otomatik uygulanır." $T.Font $T.Muted 54
+    $lblCompatInfo.AutoEllipsis = $false
+    $flowCompat = New-Flow 46
+    $btnCompat = New-Button "Kurulu modları 1.62'ye uyarla" 280 -Primary
+    $btnCompatBackup = New-Button 'Uyumluluk yedeklerini aç' 230
+    $flowCompat.Controls.AddRange(@($btnCompat, $btnCompatBackup))
+    $lblCompat = New-Control Label @{ Dock = 'Fill'; ForeColor = $T.Muted; Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 0); Text = 'Oyun kapalı olmalı. İşlem birkaç dakika sürebilir; dosyalar host ile birebir doğrulanır.' }
+    Add-Stack $compatCard @((New-Text 'Oyun güncellemesi · ETS2 1.62' $T.FontH2 $T.Text 30), $lblCompatInfo, $flowCompat, $lblCompat)
+    $compatCard.Visible = [bool]$Ctx.CompatibilityProfile
+    Add-Stack $pageInstall @($compatCard, (New-Spacer 14), $dropZone, (New-Spacer 14), $installCard, (New-Spacer 14), $exportCard)
 
     # --- 4. Mod sırası ----------------------------------------------------------------------
     $pageOrder = New-Page
@@ -564,7 +574,10 @@ function Show-AssistantWindow {
         $trackFill.BackColor = if ($ui.Ratio -ge 1) { $green } else { $T.Accent }
         Set-Text $lblTotal $("$($tot.DoneFiles) / $($tot.Files) dosya   ·   $(Format-Size $tot.DoneBytes) / $(Format-Size $tot.TotalBytes)")
         $hostOk = -not @(Get-HostFileReport $Ctx | Where-Object { $_.State -ne 'ok' }).Count
-        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc
+        $btnInstall.Enabled = ($act.Kind -eq 'done') -and $hostOk -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.CompatProc
+        $btnCompat.Enabled = [bool]$Ctx.ModFolder -and [bool]$Ctx.CompatibilityProfile -and (Test-Path -LiteralPath $Ctx.CompatibilityProfile) -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.ExportProc -and -not $ui.CompatProc -and -not $ui.Bg
+        $btnExport.Enabled = -not $ui.CompatProc -and -not $ui.ExportProc
+        $btnClean.Enabled = -not $ui.CompatProc -and -not $ui.InstallProc -and -not $ui.AddProc -and -not $ui.Bg
         if ($act.Kind -eq 'done' -and -not $hostOk) { $lblInstall.Text = 'Host''tan gelen dosya eksik/farklı, "1  Ön kontrol" sayfasına bak.'; $lblInstall.ForeColor = $red }
         $sum = Get-InstallSummary $Ctx
         $allIn = $sum.Total -and $sum.Installed -eq $sum.Total
@@ -683,7 +696,7 @@ function Show-AssistantWindow {
     $handleDrop = {
         # Sürükle-bırak olayında soru sorulmaz (Gezgin bırakma bitene kadar donar); zamanlayıcıdan çağrılır
         $paths = @($ui.PendingDrop); $ui.PendingDrop = $null
-        if ($ui.AddProc -or $ui.InstallProc -or $ui.Bg) {
+        if ($ui.AddProc -or $ui.InstallProc -or $ui.CompatProc -or $ui.Bg) {
             [System.Windows.Forms.MessageBox]::Show($form, 'Önceki iş hâlâ sürüyor. Bitince tekrar bırak.', 'Dosya ekleme') | Out-Null
             return
         }
@@ -730,17 +743,32 @@ function Show-AssistantWindow {
             [void](Update-AssistantDownloads $Ctx -Notify $statusText)
             if ($lblWatch.Text -ne $watchText) { $lblWatch.Text = $watchText; $lblWatch.ForeColor = $T.Muted }
             & $refresh
-            foreach ($p in @('InstallProc', 'ExportProc', 'AddProc')) {
+            foreach ($p in @('InstallProc', 'ExportProc', 'AddProc', 'CompatProc')) {
                 $proc = $ui[$p]
                 if ($proc -and $proc.HasExited) {
                     $ui[$p] = $null
-                    $rf = Join-Path $Ctx.PackageRoot $(switch ($p) { 'InstallProc' { 'kurulum-sonucu.json' } 'AddProc' { 'birakma-sonucu.json' } default { 'kontrol-sonucu.json' } })
+                    $rf = Join-Path $Ctx.PackageRoot $(switch ($p) { 'InstallProc' { 'kurulum-sonucu.json' } 'AddProc' { 'birakma-sonucu.json' } 'CompatProc' { 'uyumluluk-sonucu.json' } default { 'kontrol-sonucu.json' } })
                     $res = if (Test-Path -LiteralPath $rf) { Read-JsonFile $rf } else { $null }
                     if ($res -and $p -ne 'ExportProc') {
                         Register-InstalledFiles $Ctx @(Get-Prop $res 'Installed' @())
                         [void](Update-InstalledState $Ctx); & $refresh
                     }
                     if ($p -eq 'AddProc') { & $showAddResult $res; continue }
+                    if ($p -eq 'CompatProc') {
+                        if ($res -and (Get-Prop $res 'Ok' $false)) {
+                            $updated = @(Get-Prop $res 'Updated' @()).Count
+                            $recognized = @(Get-Prop $res 'Installed' @()).Count
+                            $missing = @(Get-Prop $res 'Missing' @()).Count
+                            $lblCompat.Text = "$updated dosya güncellendi; $recognized dosya doğrulandı. Oyunda modları '4  Mod sırası'na göre etkinleştir."
+                            if ($missing) { $lblCompat.Text += " $missing ProMods paketi bu bilgisayarda bulunamadı." }
+                            if (Get-Prop $res 'BackupDir') { $ui.LastBackup = $res.BackupDir }
+                            $lblCompat.ForeColor = if ($missing) { $orange } else { $green }
+                        } else {
+                            $lblCompat.Text = "İşlem tamamlanamadı. $(Get-Prop $res 'Error' 'Uyumluluk sonucu alınamadı; tekrar dene.')"
+                            $lblCompat.ForeColor = $red
+                        }
+                        continue
+                    }
                     if ($p -eq 'InstallProc') {
                         if ($res -and (Get-Prop $res 'Ok' $false)) {
                             $lblInstall.Text = "Kurulum tamam ✓  Bütün dosyalar host'unkiyle aynı.`r`nŞimdi '4  Mod sırası' sayfasına bak ve oyunu aç."; $lblInstall.ForeColor = $green
@@ -786,14 +814,14 @@ function Show-AssistantWindow {
             & $refresh
         })
     $btnInstall.Add_Click({
-            if ($ui.Bg) { return }
+            if ($ui.Bg -or $ui.CompatProc -or $ui.InstallProc -or $ui.AddProc) { return }
             $q = [System.Windows.Forms.MessageBox]::Show($form,
                 "Arşivler açılıp oyunun mod klasörüne kurulacak (birkaç dakika sürer).`r`nOyun kapalı olmalı. Devam edilsin mi?", 'Kurulum', 'YesNo', 'Question')
             if ($q -ne 'Yes') { return }
             & $askConflictsThen $startFullInstall
         })
     $btnClean.Add_Click({
-            if ($ui.Bg -or $ui.AddProc -or $ui.InstallProc) { return }
+            if ($ui.Bg -or $ui.AddProc -or $ui.InstallProc -or $ui.CompatProc) { return }
             if (-not $Ctx.ModFolder -or -not (Test-Path -LiteralPath $Ctx.ModFolder)) {
                 [System.Windows.Forms.MessageBox]::Show($form, 'Oyunun mod klasörü bulunamadı. Oyunu bir kez açıp kapat.', 'Mod klasörü') | Out-Null; return
             }
@@ -806,6 +834,7 @@ function Show-AssistantWindow {
             if (Test-Path -LiteralPath $p) { Start-Process explorer.exe -ArgumentList "`"$p`"" }
         })
     $btnExport.Add_Click({
+            if ($ui.CompatProc) { return }
             $label = ($txtName.Text.Trim().ToLowerInvariant() -replace '[^a-z0-9_-]', '')
             if (-not $label) { $label = 'arkadas' }
             $rf = Join-Path $Ctx.PackageRoot 'kontrol-sonucu.json'
@@ -813,6 +842,20 @@ function Show-AssistantWindow {
             $ui.ExportProc = Start-AssistantTask $Ctx export -Label $label -ResultFile $rf
             $btnExport.Enabled = $false
             $lblExport.Text = 'Oluşturuluyor… (oyun kapalı olmalı)'; $lblExport.ForeColor = $blue
+        })
+
+    $btnCompat.Add_Click({
+            if ($ui.CompatProc -or $ui.InstallProc -or $ui.AddProc -or $ui.ExportProc -or $ui.Bg) { return }
+            $rf = Join-Path $Ctx.PackageRoot 'uyumluluk-sonucu.json'
+            if (Test-Path -LiteralPath $rf) { Remove-Item -LiteralPath $rf -Force }
+            $ui.CompatProc = Start-AssistantTask $Ctx compat -ResultFile $rf
+            $btnCompat.Enabled = $false
+            $lblCompat.Text = 'Modlar kontrol ediliyor, yedekleniyor ve 1.62 düzeltmesi hazırlanıyor… Asistanı kapatma.'
+            $lblCompat.ForeColor = $blue
+        })
+    $btnCompatBackup.Add_Click({
+            $backupPath = Join-Path $Ctx.PackageRoot 'yedek-modlar\uyumluluk'
+            if (Test-Path -LiteralPath $backupPath) { Start-Process explorer.exe -ArgumentList "`"$backupPath`"" }
         })
 
     # Sürükle-bırak: pencerenin her yerine dosya/klasör bırakılabilir
