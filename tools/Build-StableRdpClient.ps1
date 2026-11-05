@@ -27,5 +27,6 @@ if(-not $proc.WaitForExit(15000)){throw 'RDP denetim testi zaman aşımına uğr
 if($proc.ExitCode -ne 0){throw ([IO.File]::ReadAllText($report))}
 $result=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
 if(-not $result.IgnoreServerGeneratedMouseMoves -or -not $result.RelativeMouseMode -or $result.ConnectionAttempted){throw 'RDP fare ayarları doğrulanamadı.'}
+if(-not $result.Fullscreen -or -not $result.ViewportFillsScreen -or -not $result.WindowedToggle -or -not $result.SmartSizing -or $result.SuperPan){throw 'RDP tam ekran yerleşimi doğrulanamadı.'}
 Write-Output "Hazır: $exe"
 Write-Output ([IO.File]::ReadAllText($report))
