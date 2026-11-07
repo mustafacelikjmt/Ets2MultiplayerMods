@@ -13,8 +13,17 @@
 
     Kişisel ayarlar (host adı, modset, def dosyası) repoya girmez; local\yayin-ayarlari.json'dan okunur:
       { "HostName": "<adın>", "ModSet": "modset-<ad>.json", "HostFile": ["original\\promods\\promods-eu-def-v284.scs"],
-        "Guide": "docs\\KURULUM.txt" }
+        "Guide": "docs\\KURULUM.txt", "CompatibilityProfile": "local\\uyumluluk\\promods-161-to-162" }
     Yollar repo köküne göredir.
+
+    ⚠️ CompatibilityProfile, paketin catalog\packs\<pack>.json'u compatibilityProfile
+    bildiriyorsa ZORUNLUDUR: New-FriendPackage.ps1 o durumda profil dizini olmadan paket
+    üretmeyi reddeder. Bu örnekte eksik olduğu için bir kez şu duruma düşüldü — ayar
+    dosyası anahtarı hiç taşımıyordu ve sebebi ancak paket tanımı okununca anlaşıldı.
+
+    ⚠️ Bu anahtarların gösterdiği dosyalar gitignore'dadır (original\, local\): klonla
+    GELMEZLER ve git onları yedeklemez. Elde yoksa daha önce dağıtılmış bir exe'nin
+    içinden çıkarılabilir; paket exe'ye "paket.zip" adlı gömülü kaynak olarak konuyor.
 
     ⚠️ MSERVER'A GİDEN PAKET, ARKADAŞ PAKETİ DEĞİLDİR. Arkadaş paketi host'un modset'ini
     ve ProMods def dosyasını taşıyor; o zip herkese açık bir adrese KONMAZ. Sunucuya
