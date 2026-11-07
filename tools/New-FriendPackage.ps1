@@ -31,6 +31,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $assistant = Join-Path $repo 'assistant'
+# Asistan programının dosya listesi burada DEĞİL: güncelleme paketiyle aynı listeyi
+# kullanmak zorunda (gerekçe AssistantPayload.ps1'in başında).
+. (Join-Path $PSScriptRoot 'AssistantPayload.ps1')
 if (-not (Test-Path -LiteralPath (Join-Path $assistant "catalog\packs\$Pack.json"))) { throw "Katalogda '$Pack' paketi yok." }
 
 if (Test-Path -LiteralPath $OutDir) {
@@ -43,20 +46,8 @@ if (Test-Path -LiteralPath $OutDir) {
 New-Item -ItemType Directory -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path -LiteralPath $OutDir).ProviderPath
 
-# Asistan
-$asistanOut = Join-Path $OutDir 'asistan'
-New-Item -ItemType Directory -Path $asistanOut | Out-Null
-foreach ($item in 'Start-Asistan.ps1', 'version.json', 'lib', 'catalog', 'assets') {
-    Copy-Item -LiteralPath (Join-Path $assistant $item) -Destination $asistanOut -Recurse
-}
-Copy-Item -LiteralPath (Join-Path $assistant 'Asistan.cmd') -Destination $OutDir
-
-# Araçlar
-$tools = Join-Path $OutDir 'araclar'
-New-Item -ItemType Directory -Path $tools | Out-Null
-foreach ($t in 'Ets2Common.ps1', 'Expand-ModArchives.ps1', 'Install-ModPack.ps1', 'Export-ModSet.ps1', 'Compare-ModSet.ps1', 'Update-ModCompatibility.ps1', 'CompatibilityPatch.cs', 'ProfileModOrder.cs', 'ProfileModOrder.ps1') {
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $t) -Destination $tools
-}
+# Asistan programı (asistan\ + araclar\ + Asistan.cmd) — güncelleme paketiyle AYNI içerik.
+Copy-AssistantPayload -Destination $OutDir -RepoRoot $repo
 
 # Host dosyaları
 $msName = 'modset-host.json'
